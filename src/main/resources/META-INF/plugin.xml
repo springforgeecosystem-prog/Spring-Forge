@@ -1,0 +1,51 @@
+<idea-plugin>
+    <id>org.springforge</id>
+    <name>SpringForge Tools</name>
+    <vendor email="SpringForge@yourorg.com">springforge</vendor>
+    <version>1.0.0</version>
+
+    <description>
+        Architecture-aware Spring Boot tool suite (CodeGen, QA, Runtime Analysis, CI/CD).
+    </description>
+
+    <depends>com.intellij.modules.java</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="SpringForge" displayType="BALLOON" isLogByDefault="true"/>
+    </extensions>
+
+    <actions>
+
+        <!-- Parent Menu Group with popup="true" -->
+        <group id="SpringForge.Menu"
+               text="SpringForge"
+               description="SpringForge Tools"
+               popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <!-- Child actions INSIDE the parent group -->
+            <action id="SpringForge.CodeGen.Generate"
+                    class="org.springforge.codegeneration.actions.GenerateCodeAction"
+                    text="Generate Code"
+                    description="Generate Spring Boot code"/>
+
+            <action id="SpringForge.Refactor.Action"
+                    class="org.springforge.qualityassurance.actions.SmartRefactorAction"
+                    text="Smart Refactor"
+                    description="Refactor Spring Boot files"/>
+
+            <action id="SpringForge.Debugger.Action"
+                    class="org.springforge.runtimeanalysis.actions.StartDebuggerAction"
+                    text="Start Runtime Debugger"
+                    description="Debugger module"/>
+
+            <action id="SpringForge.CICD.Action"
+                    class="org.springforge.cicdassistant.actions.GeneratePipelineAction"
+                    text="Generate CI/CD Pipeline"
+                    description="Generate base CI/CD configuration"/>
+
+        </group>
+
+    </actions>
+
+</idea-plugin>
