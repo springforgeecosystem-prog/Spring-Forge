@@ -5,23 +5,18 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlvalidator): add initial schema validation logic">
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/actions/GeneratePipelineAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GenerateCodeAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/actions/SmartRefactorAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/StartDebuggerAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalyzer.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/InputModel.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/ParseResult.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/YamlParser.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/YamlWriter.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/InferenceClient.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/YamlPreviewDialog.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlAutoFixer.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlSchema.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlValidator.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/actions/OpenInputYmlAction.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/analysis/ProjectAnalyzer.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/parser/YamlParser.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/parser/YamlWriter.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/service/InferenceClient.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/service/InputModel.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/service/ParseResult.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/ui/YamlPreviewDialog.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/validation/YamlAutoFixer.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/validation/YamlSchema.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/validation/YamlValidator.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GenerateCodeAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GenerateCodeAction.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -88,9 +83,11 @@
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
         <entry key="$PROJECT_DIR$/.." value="main" />
+        <entry key="$PROJECT_DIR$" value="dev" />
       </map>
     </option>
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="ROOT_SYNC" value="DONT_SYNC" />
   </component>
   <component name="KotlinCodeInsightWorkspaceSettings">
     <option name="optimizeImportsOnTheFly" value="true" />
@@ -123,9 +120,9 @@
     &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/yamlValidator&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/YamlParser&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/Project/SpringForge/SpringForge-CodeGeneration&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/Project/SpringForge/SpringForge-CodeGeneration/src/main/java/org/springforge/codegeneration/analysis&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -141,6 +138,8 @@
 }</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\springforge\codegeneration\analysis" />
+      <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\springforge\codegeneration" />
       <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\CodeGeneration" />
       <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\RuntimeErrorAnalysis" />
       <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\QualityAssuranceEngine" />
@@ -253,6 +252,10 @@
       <workItem from="1763299951645" duration="140000" />
       <workItem from="1763300218317" duration="17000" />
       <workItem from="1763300753780" duration="131000" />
+      <workItem from="1763300900852" duration="378000" />
+      <workItem from="1763392844629" duration="341000" />
+      <workItem from="1763393203707" duration="37000" />
+      <workItem from="1763393302865" duration="2312000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
@@ -269,11 +272,38 @@
     <option name="version" value="3" />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
+    <option name="RECENT_FILTERS">
+      <map>
+        <entry key="Branch">
+          <value>
+            <list>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="feat/YamlParser" />
+                </option>
+              </RecentGroup>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
     <option name="TAB_STATES">
       <map>
         <entry key="MAIN">
           <value>
-            <State />
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="feat/YamlParser" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
           </value>
         </entry>
       </map>
