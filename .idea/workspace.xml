@@ -4,19 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlvalidator): add initial schema validation logic">
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalyzer.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/InputModel.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/ParseResult.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/YamlParser.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/YamlWriter.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/InferenceClient.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/YamlPreviewDialog.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlAutoFixer.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlSchema.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlValidator.kt" afterDir="false" />
+    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlparser): initialize YAML parser module">
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/ExistingProjectAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/FeatureExtractor.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/ArchitecturePredictor.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GenerateCodeAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GenerateCodeAction.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -83,7 +76,7 @@
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
         <entry key="$PROJECT_DIR$/.." value="main" />
-        <entry key="$PROJECT_DIR$" value="dev" />
+        <entry key="$PROJECT_DIR$" value="feat/YamlParser" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -120,9 +113,9 @@
     &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/YamlParser&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/FeatureExtractor&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/Project/SpringForge/SpringForge-CodeGeneration/src/main/java/org/springforge/codegeneration/analysis&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/SpringForge/spring_architectures/clean/1sagarthakur1_StudentCourseManagementSystemApp&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -215,16 +208,16 @@
     <recent_temporary>
       <list>
         <item itemvalue="Gradle.SpringForge-CodeGeneration [runIde]" />
-        <item itemvalue="Gradle.SpringForge-CodeGeneration [build]" />
         <item itemvalue="Gradle.SpringForge-CodeGeneration [clean]" />
+        <item itemvalue="Gradle.SpringForge-CodeGeneration [build]" />
       </list>
     </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-9f38398b9061-39b83d9b5494-intellij.indexing.shared.core-IU-241.15989.150" />
-        <option value="bundled-js-predefined-1d06a55b98c1-91d5c284f522-JavaScript-IU-241.15989.150" />
+        <option value="bundled-jdk-9823dce3aa75-fdfe4dae3a2d-intellij.indexing.shared.core-IU-243.21565.193" />
+        <option value="bundled-js-predefined-d6986cc7102b-e768b9ed790e-JavaScript-IU-243.21565.193" />
       </set>
     </attachedChunks>
   </component>
@@ -255,7 +248,12 @@
       <workItem from="1763300900852" duration="378000" />
       <workItem from="1763392844629" duration="341000" />
       <workItem from="1763393203707" duration="37000" />
-      <workItem from="1763393302865" duration="2312000" />
+      <workItem from="1763393302865" duration="3893000" />
+      <workItem from="1763790745236" duration="697000" />
+      <workItem from="1763826492238" duration="1380000" />
+      <workItem from="1763828202994" duration="18000" />
+      <workItem from="1763828724062" duration="11000" />
+      <workItem from="1763828815766" duration="18000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
@@ -265,7 +263,15 @@
       <option name="project" value="LOCAL" />
       <updated>1763115008718</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="feat(yamlparser): initialize YAML parser module">
+      <option name="closed" value="true" />
+      <created>1763395830071</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1763395830071</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -312,6 +318,7 @@
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
     <MESSAGE value="feat(yamlvalidator): add initial schema validation logic" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(yamlvalidator): add initial schema validation logic" />
+    <MESSAGE value="feat(yamlparser): initialize YAML parser module" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(yamlparser): initialize YAML parser module" />
   </component>
 </project>

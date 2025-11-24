@@ -16,29 +16,48 @@
 
     <actions>
 
-        <!-- Parent Menu Group with popup="true" -->
+        <!-- ==============================
+             ROOT MENU: SpringForge
+           ============================== -->
         <group id="SpringForge.Menu"
                text="SpringForge"
                description="SpringForge Tools"
                popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
-            <!-- Child actions INSIDE the parent group -->
-            <action id="SpringForge.CodeGen.Generate"
-                    class="org.springforge.codegeneration.actions.GenerateCodeAction"
-                    text="Generate Code"
-                    description="Generate Spring Boot code"/>
+            <!-- ==============================
+                 Code Generation (Dropdown)
+               ============================== -->
+            <group id="SpringForge.CodeGen"
+                   text="Generate Code"
+                   description="Code generation and architecture tools"
+                   popup="true">
 
+                <action id="SpringForge.CodeGen.ExistingProject"
+                        class="org.springforge.codegeneration.actions.ExistingProjectAction"
+                        text="Existing Project (Detect Architecture)"
+                        description="Analyze existing project detect architecture using ML"/>
+            </group>
+
+            <!-- ==============================
+                 Smart Refactor
+               ============================== -->
             <action id="SpringForge.Refactor.Action"
                     class="org.springforge.qualityassurance.actions.SmartRefactorAction"
                     text="Smart Refactor"
                     description="Refactor Spring Boot files"/>
 
+            <!-- ==============================
+                 Runtime Debugger
+               ============================== -->
             <action id="SpringForge.Debugger.Action"
                     class="org.springforge.runtimeanalysis.actions.StartDebuggerAction"
                     text="Start Runtime Debugger"
                     description="Debugger module"/>
 
+            <!-- ==============================
+                 CI/CD Generator
+               ============================== -->
             <action id="SpringForge.CICD.Action"
                     class="org.springforge.cicdassistant.actions.GeneratePipelineAction"
                     text="Generate CI/CD Pipeline"
@@ -47,5 +66,4 @@
         </group>
 
     </actions>
-
 </idea-plugin>
