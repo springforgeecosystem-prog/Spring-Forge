@@ -4,12 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlparser): initialize YAML parser module">
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/ExistingProjectAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/FeatureExtractor.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/ArchitecturePredictor.kt" afterDir="false" />
+    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="Improvement: Enhanced heuristic validation layer after predicting the software architecture">
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/SpringInitializrClient.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -76,7 +73,7 @@
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
         <entry key="$PROJECT_DIR$/.." value="main" />
-        <entry key="$PROJECT_DIR$" value="feat/YamlParser" />
+        <entry key="$PROJECT_DIR$" value="feat/new-project-scaffold" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -210,14 +207,16 @@
         <item itemvalue="Gradle.SpringForge-CodeGeneration [runIde]" />
         <item itemvalue="Gradle.SpringForge-CodeGeneration [clean]" />
         <item itemvalue="Gradle.SpringForge-CodeGeneration [build]" />
+        <item itemvalue="Gradle.SpringForge-CodeGeneration [runIde]" />
+        <item itemvalue="Gradle.SpringForge-CodeGeneration [clean]" />
       </list>
     </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-9823dce3aa75-fdfe4dae3a2d-intellij.indexing.shared.core-IU-243.21565.193" />
-        <option value="bundled-js-predefined-d6986cc7102b-e768b9ed790e-JavaScript-IU-243.21565.193" />
+        <option value="bundled-jdk-9f38398b9061-39b83d9b5494-intellij.indexing.shared.core-IU-241.15989.150" />
+        <option value="bundled-js-predefined-1d06a55b98c1-91d5c284f522-JavaScript-IU-241.15989.150" />
       </set>
     </attachedChunks>
   </component>
@@ -254,6 +253,9 @@
       <workItem from="1763828202994" duration="18000" />
       <workItem from="1763828724062" duration="11000" />
       <workItem from="1763828815766" duration="18000" />
+      <workItem from="1763829682130" duration="43000" />
+      <workItem from="1763833466104" duration="11000" />
+      <workItem from="1764126798547" duration="952000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
@@ -271,7 +273,31 @@
       <option name="project" value="LOCAL" />
       <updated>1763395830071</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="feat(FeatureExtracter):Initial Structure for feature extractor module added">
+      <option name="closed" value="true" />
+      <created>1763829104741</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1763829104741</updated>
+    </task>
+    <task id="LOCAL-00004" summary="feat(FeatureExtracter):Implemented advance ATS base feature extracter">
+      <option name="closed" value="true" />
+      <created>1763829142366</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1763829142366</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Improvement: Enhanced heuristic validation layer after predicting the software architecture">
+      <option name="closed" value="true" />
+      <created>1764130998601</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1764130998601</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -303,7 +329,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="feat/YamlParser" />
+                        <option value="feat/FeatureExtractor" />
                       </list>
                     </value>
                   </entry>
@@ -319,6 +345,9 @@
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
     <MESSAGE value="feat(yamlvalidator): add initial schema validation logic" />
     <MESSAGE value="feat(yamlparser): initialize YAML parser module" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(yamlparser): initialize YAML parser module" />
+    <MESSAGE value="feat(FeatureExtracter):Initial Structure for feature extractor module added" />
+    <MESSAGE value="feat(FeatureExtracter):Implemented advance ATS base feature extracter" />
+    <MESSAGE value="Improvement: Enhanced heuristic validation layer after predicting the software architecture" />
+    <option name="LAST_COMMIT_MESSAGE" value="Improvement: Enhanced heuristic validation layer after predicting the software architecture" />
   </component>
 </project>
