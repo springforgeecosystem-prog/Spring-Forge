@@ -33,6 +33,14 @@
                    description="Code generation and architecture tools"
                    popup="true">
 
+
+                    <!-- existing actions -->
+                    <action id="org.SpringForge.actions.CreateNewProjectAction"
+                            class="org.springforge.codegeneration.actions.CreateNewProjectAction"
+                            text="SpringForge: Create New Spring Boot Project"
+                            description="Create and initialize a new Spring Boot project with architecture template"/>
+                    <!-- other actions -->
+
                 <action id="SpringForge.CodeGen.ExistingProject"
                         class="org.springforge.codegeneration.actions.ExistingProjectAction"
                         text="Existing Project (Detect Architecture)"
