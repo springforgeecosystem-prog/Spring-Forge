@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="create: TemplateGenerator to create architecture folders">
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/CreateProjectDialog.kt" afterDir="false" />
-    </list>
+    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="create: add small helper to convert arch enum (cleanup)" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -255,7 +252,7 @@
       <workItem from="1763828815766" duration="18000" />
       <workItem from="1763829682130" duration="43000" />
       <workItem from="1763833466104" duration="11000" />
-      <workItem from="1764126798547" duration="1356000" />
+      <workItem from="1764126798547" duration="1655000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
@@ -321,7 +318,39 @@
       <option name="project" value="LOCAL" />
       <updated>1764131213225</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="create: Add CreateProjectDialog (choose architecture &amp; options)">
+      <option name="closed" value="true" />
+      <created>1764131657816</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131657816</updated>
+    </task>
+    <task id="LOCAL-00010" summary="create: Add CreateNewProjectAction to wire UI and do work">
+      <option name="closed" value="true" />
+      <created>1764131672564</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131672564</updated>
+    </task>
+    <task id="LOCAL-00011" summary="update: plugin.xml - add create project action">
+      <option name="closed" value="true" />
+      <created>1764131690395</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131690395</updated>
+    </task>
+    <task id="LOCAL-00012" summary="create: add small helper to convert arch enum (cleanup)">
+      <option name="closed" value="true" />
+      <created>1764131703214</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131703214</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -375,6 +404,10 @@
     <MESSAGE value="feat(new-project-scaffold): Initial structure for new project scaffolding" />
     <MESSAGE value="create: add Zip utility to extract downloaded archive" />
     <MESSAGE value="create: TemplateGenerator to create architecture folders" />
-    <option name="LAST_COMMIT_MESSAGE" value="create: TemplateGenerator to create architecture folders" />
+    <MESSAGE value="create: Add CreateProjectDialog (choose architecture &amp; options)" />
+    <MESSAGE value="create: Add CreateNewProjectAction to wire UI and do work" />
+    <MESSAGE value="update: plugin.xml - add create project action" />
+    <MESSAGE value="create: add small helper to convert arch enum (cleanup)" />
+    <option name="LAST_COMMIT_MESSAGE" value="create: add small helper to convert arch enum (cleanup)" />
   </component>
 </project>

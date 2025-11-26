@@ -37,8 +37,8 @@ object TemplateGenerator {
         File(packageDir, "repository").mkdirs()
         File(packageDir, "entity").mkdirs()
         File(packageDir, "dto").mkdirs()
-        // create marker README files to make structure visible in VFS
         File(packageDir, "README_LAYERED.txt").writeText("Layered architecture folders: controller, service, repository, entity, dto")
+        createPackageInfo(packageDir)
     }
 
     private fun createMVC(packageDir: File) {
@@ -47,6 +47,7 @@ object TemplateGenerator {
         File(packageDir, "model").mkdirs()
         File(packageDir, "view").mkdirs()
         File(packageDir, "README_MVC.txt").writeText("MVC architecture folders: controller, service, model, view")
+        createPackageInfo(packageDir)
     }
 
     private fun createClean(packageDir: File) {
@@ -55,5 +56,14 @@ object TemplateGenerator {
         File(packageDir, "adapter").mkdirs()
         File(packageDir, "infrastructure").mkdirs()
         File(packageDir, "README_CLEAN.txt").writeText("Clean/Hexagonal architecture folders: domain, usecase, adapter, infrastructure")
+        createPackageInfo(packageDir)
+    }
+
+    private fun createPackageInfo(packageDir: File) {
+        // create a package-info.java placeholder in base package to show package in IDE
+        val pi = File(packageDir, "package-info.java")
+        if (!pi.exists()) {
+            pi.writeText("/** Generated package-info placeholder for SpringForge template */")
+        }
     }
 }
