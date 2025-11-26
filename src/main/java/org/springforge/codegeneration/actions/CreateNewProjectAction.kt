@@ -34,10 +34,10 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
         // run in background to download and extract
         object : Task.Backgroundable(project, "Creating Spring Boot Project", false) {
             override fun run(indicator: ProgressIndicator) {
+                val tmpZip = File(System.getProperty("java.io.tmpdir"), "springforge_${artifactId}.zip")
                 try {
                     indicator.text = "Downloading starter from Spring Initializr..."
                     val client = SpringInitializrClient()
-                    val tmpZip = File(System.getProperty("java.io.tmpdir"), "springforge_${artifactId}.zip")
                     client.downloadStarterZip(params, tmpZip)
 
                     indicator.text = "Extracting starter..."
@@ -76,6 +76,8 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
                         Notification("SpringForge", "Creation failed", ex.message ?: "Unknown error", NotificationType.ERROR),
                         project
                     )
+                } finally {
+                    if (tmpZip.exists()) tmpZip.delete()
                 }
             }
         }.queue()
