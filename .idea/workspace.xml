@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="Improvement: Enhanced heuristic validation layer after predicting the software architecture">
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/SpringInitializrClient.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="create: TemplateGenerator to create architecture folders">
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/CreateProjectDialog.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -73,7 +73,7 @@
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
         <entry key="$PROJECT_DIR$/.." value="main" />
-        <entry key="$PROJECT_DIR$" value="feat/new-project-scaffold" />
+        <entry key="$PROJECT_DIR$" value="feat/FeatureExtractor" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -98,34 +98,34 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
-    &quot;Gradle.Build SpringForge-CodeGeneration.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [:Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [clean].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [runIde].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [setupDependencies].executor&quot;: &quot;Run&quot;,
-    &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/FeatureExtractor&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/SpringForge/spring_architectures/clean/1sagarthakur1_StudentCourseManagementSystemApp&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;onboarding.tips.debug.path&quot;: &quot;E:/Edu/Research/SpringForge/SpringForge-CodeGeneration/src/main/java/org/SpringForge/Main.java&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;reference.settingsdialog.project.gradle&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_ADD_EXTERNAL_FILES": "true",
+    "Gradle.Build SpringForge-CodeGeneration.executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [:Main.main()].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [build].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [clean].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [runIde].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [setupDependencies].executor": "Run",
+    "Kotlin script (Beta).build.gradle.kts.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "feat/new-project-scaffold",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "E:/Edu/Research/SpringForge/spring_architectures/clean/1sagarthakur1_StudentCourseManagementSystemApp",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "onboarding.tips.debug.path": "E:/Edu/Research/SpringForge/SpringForge-CodeGeneration/src/main/java/org/SpringForge/Main.java",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "settings.editor.selected.configurable": "reference.settingsdialog.project.gradle",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\springforge\codegeneration\analysis" />
@@ -255,7 +255,7 @@
       <workItem from="1763828815766" duration="18000" />
       <workItem from="1763829682130" duration="43000" />
       <workItem from="1763833466104" duration="11000" />
-      <workItem from="1764126798547" duration="952000" />
+      <workItem from="1764126798547" duration="1356000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
@@ -297,7 +297,31 @@
       <option name="project" value="LOCAL" />
       <updated>1764130998601</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="feat(new-project-scaffold): Initial structure for new project scaffolding">
+      <option name="closed" value="true" />
+      <created>1764131097566</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131097566</updated>
+    </task>
+    <task id="LOCAL-00007" summary="create: add Zip utility to extract downloaded archive">
+      <option name="closed" value="true" />
+      <created>1764131162403</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131162403</updated>
+    </task>
+    <task id="LOCAL-00008" summary="create: TemplateGenerator to create architecture folders">
+      <option name="closed" value="true" />
+      <created>1764131213225</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131213225</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -348,6 +372,9 @@
     <MESSAGE value="feat(FeatureExtracter):Initial Structure for feature extractor module added" />
     <MESSAGE value="feat(FeatureExtracter):Implemented advance ATS base feature extracter" />
     <MESSAGE value="Improvement: Enhanced heuristic validation layer after predicting the software architecture" />
-    <option name="LAST_COMMIT_MESSAGE" value="Improvement: Enhanced heuristic validation layer after predicting the software architecture" />
+    <MESSAGE value="feat(new-project-scaffold): Initial structure for new project scaffolding" />
+    <MESSAGE value="create: add Zip utility to extract downloaded archive" />
+    <MESSAGE value="create: TemplateGenerator to create architecture folders" />
+    <option name="LAST_COMMIT_MESSAGE" value="create: TemplateGenerator to create architecture folders" />
   </component>
 </project>
