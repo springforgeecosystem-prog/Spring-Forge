@@ -1,0 +1,21 @@
+# Secret token - NEVER commit this
+.env
+
+# Cloned repositories (too big)
+repos/
+dataset-anti-pattern/repos/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# CSV files (you can keep final ones, but raw ones are huge)
+*.csv
+!dataset-anti-pattern/Machine Learning Pipeline/Final Dataset/*.csv
+
+# Virtual environment (if you use one)
+venv/
+.env/
