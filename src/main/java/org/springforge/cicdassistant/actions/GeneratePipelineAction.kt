@@ -13,7 +13,7 @@ import org.springforge.cicdassistant.services.ProjectAnalyzerService
 import java.io.File
 
 /**
- * Action to generate CI/CD artifacts using Claude 4 Opus
+ * Action to generate CI/CD artifacts using Claude Sonnet 4.5
  */
 class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
 
@@ -41,7 +41,7 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
         if (choice < 0) return // User cancelled
 
         // Run generation in background with progress
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Generating CI/CD Files with Claude 4 Opus", true) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Generating CI/CD Files with Claude Sonnet 4.5", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
                     indicator.text = "Analyzing Spring Boot project..."
@@ -51,7 +51,7 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
                     val projectInfo = analyzerService.analyzeProject(project)
                     val projectInfoStr = analyzerService.formatProjectInfoForPrompt(projectInfo)
 
-                    indicator.text = "Connecting to Claude 4 Opus..."
+                    indicator.text = "Connecting to Claude Sonnet 4.5..."
                     indicator.fraction = 0.3
 
                     val claudeService = ClaudeService()
@@ -96,10 +96,18 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
         project: com.intellij.openapi.project.Project,
         indicator: ProgressIndicator
     ) {
-        indicator.text = "Generating Dockerfile with Claude 4 Opus..."
-        indicator.fraction = 0.5
+        indicator.text = "Analyzing codebase structure with AST..."
+        indicator.fraction = 0.3
 
-        val dockerfile = claudeService.generateDockerfile(projectInfo)
+        //  Get full AST-analyzed project info
+        val analyzerService = ProjectAnalyzerService()
+        val analyzedInfo = analyzerService.analyzeProject(project)
+
+        indicator.text = "Generating intelligent Dockerfile with Claude Sonnet 4.5..."
+        indicator.fraction = 0.6
+
+        //  Use AST-aware generation instead of string-based
+        val dockerfile = claudeService.generateDockerfileFromAnalysis(analyzedInfo)
         saveToFile(project, "Dockerfile", dockerfile)
 
         indicator.text = "Dockerfile generated!"
