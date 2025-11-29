@@ -89,8 +89,8 @@ object EnvironmentConfig {
     // Claude Configuration
     object Claude {
         val modelId: String
-            get() = getEnv("CLAUDE_MODEL_ID", "us.anthropic.claude-opus-4-20250514-v1:0")
-                ?: "us.anthropic.claude-opus-4-20250514-v1:0"
+            get() = getEnv("CLAUDE_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+                ?: "us.anthropic.claude-sonnet-4-20250514-v1:0"
 
         val maxTokens: Int
             get() = getEnv("CLAUDE_MAX_TOKENS", "4000")?.toIntOrNull() ?: 4000

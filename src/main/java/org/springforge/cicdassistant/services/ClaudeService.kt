@@ -2,6 +2,7 @@ package org.springforge.cicdassistant.services
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springforge.cicdassistant.config.EnvironmentConfig
+import org.springforge.cicdassistant.prompts.DockerfilePromptBuilder
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
@@ -10,7 +11,7 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest
 
 /**
- * Service for interacting with AWS Bedrock Claude 4 Opus
+ * Service for interacting with AWS Bedrock Claude Sonnet 4.5
  * Handles CI/CD artifact generation for Spring Boot projects
  *
  * Configuration is loaded from .env file or environment variables:
@@ -24,6 +25,7 @@ class ClaudeService {
 
     private val client: BedrockRuntimeClient
     private val objectMapper = jacksonObjectMapper()
+    private val dockerfilePromptBuilder = DockerfilePromptBuilder()
 
     init {
         // Validate configuration on initialization
@@ -57,6 +59,74 @@ class ClaudeService {
      * @param projectInfo Project metadata (dependencies, Java version, build tool)
      * @return Generated Dockerfile content
      */
+    /**
+     * Generate Dockerfile using AST-analyzed project structure
+     * Uses prefill to prevent hallucination
+     */
+    fun generateDockerfileFromAnalysis(projectInfo: ProjectAnalyzerService.ProjectInfo): String {
+        val intelligentPrompt = dockerfilePromptBuilder.buildPrompt(projectInfo)
+
+        // Build prefill based on architecture type
+        val prefill = if (projectInfo.architectureType == "INTELLIJ_PLUGIN") {
+            buildIntellijPluginPrefill(projectInfo)
+        } else {
+            buildSpringBootPrefill(projectInfo)
+        }
+
+        return callClaudeWithPrefill(intelligentPrompt, prefill)
+    }
+
+    /**
+     * Build prefill for IntelliJ Plugin Dockerfile
+     * This forces Claude to start correctly and prevents hallucination
+     * Includes EXACT COPY commands to prevent Claude from hallucinating
+     * Includes dos2unix to fix Windows line ending issues
+     */
+    private fun buildIntellijPluginPrefill(projectInfo: ProjectAnalyzerService.ProjectInfo): String {
+        return """# Stage 1: Build Plugin
+FROM eclipse-temurin:${projectInfo.javaVersion}-jdk-alpine AS builder
+
+# Install bash and dos2unix for line ending conversion
+RUN apk add --no-cache bash dos2unix
+
+# Set working directory
+WORKDIR /build
+
+# Copy Gradle wrapper files
+COPY gradlew ./
+COPY gradlew.bat ./
+COPY gradle/ ./gradle/
+
+# Copy build configuration
+COPY build.gradle.kts ./
+COPY settings.gradle.kts ./
+
+# Copy source code
+COPY src/ ./src/
+
+# Fix line endings and make Gradle wrapper executable
+RUN dos2unix gradlew && chmod +x ./gradlew
+
+# Build the plugin
+RUN""".trimEnd()
+    }
+
+    /**
+     * Build prefill for Spring Boot Dockerfile
+     */
+    private fun buildSpringBootPrefill(projectInfo: ProjectAnalyzerService.ProjectInfo): String {
+        return """# Stage 1: Build
+FROM eclipse-temurin:${projectInfo.javaVersion}-jdk-alpine AS builder
+
+# Set working directory
+WORKDIR /build""".trimEnd()
+    }
+
+    /**
+     * Legacy method - kept for backward compatibility
+     * Consider using generateDockerfileFromAnalysis() instead
+     */
+    @Deprecated("Use generateDockerfileFromAnalysis() with AST-analyzed ProjectInfo")
     fun generateDockerfile(projectInfo: String): String {
         val prompt = """
             You are an expert DevOps engineer specializing in containerization.
@@ -218,7 +288,7 @@ class ClaudeService {
     }
 
     /**
-     * Core method to call Claude 4 Opus via AWS Bedrock
+     * Core method to call Claude Sonnet 4.5 via AWS Bedrock
      * @param prompt The prompt to send to Claude
      * @param maxTokens Maximum tokens for response (default: from config)
      * @return Claude's response text
@@ -247,6 +317,52 @@ class ClaudeService {
             responseBody["content"][0]["text"].asText()
         } catch (e: Exception) {
             throw ClaudeServiceException("Failed to call Claude API: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Call Claude with assistant prefill to force correct response format
+     * Prefill prevents hallucination by starting Claude's response
+     *
+     * @param prompt The prompt to send
+     * @param prefill The text to prefill Claude's response with
+     * @param maxTokens Maximum tokens for response
+     * @return Prefill + Claude's continuation
+     */
+    fun callClaudeWithPrefill(
+        prompt: String,
+        prefill: String,
+        maxTokens: Int = EnvironmentConfig.Claude.maxTokens
+    ): String {
+        return try {
+            val payload = mapOf(
+                "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
+                "max_tokens" to maxTokens,
+                "temperature" to 0.0,  // Deterministic output
+                "messages" to listOf(
+                    mapOf(
+                        "role" to "user",
+                        "content" to prompt
+                    ),
+                    mapOf(
+                        "role" to "assistant",
+                        "content" to prefill  // Force Claude to continue from here
+                    )
+                )
+            )
+
+            val request = InvokeModelRequest.builder()
+                .modelId(EnvironmentConfig.Claude.modelId)
+                .body(SdkBytes.fromUtf8String(objectMapper.writeValueAsString(payload)))
+                .build()
+
+            val response = client.invokeModel(request)
+            val responseBody = objectMapper.readTree(response.body().asUtf8String())
+
+            // Combine prefill + Claude's continuation
+            prefill + responseBody["content"][0]["text"].asText()
+        } catch (e: Exception) {
+            throw ClaudeServiceException("Failed to call Claude API with prefill: ${e.message}", e)
         }
     }
 
