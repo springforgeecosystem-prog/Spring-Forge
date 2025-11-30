@@ -1,4 +1,4 @@
-package org.springforge.cicdassistant.parser
+package org.springforge.cicdassistant.parsers
 
 import com.github.javaparser.JavaParser
 import com.github.javaparser.ast.CompilationUnit
