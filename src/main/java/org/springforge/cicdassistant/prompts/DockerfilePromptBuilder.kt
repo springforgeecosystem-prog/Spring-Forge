@@ -1,8 +1,7 @@
 package org.springforge.cicdassistant.prompts
 
 import org.springforge.cicdassistant.services.ProjectAnalyzerService.ProjectInfo
-import org.springforge.cicdassistant.parser.ArchitectureType
-
+import org.springforge.cicdassistant.parsers.ArchitectureType
 /**
  * Builds intelligent Dockerfile generation prompts based on AST-analyzed project structure
  * Rather than hardcoded conditions, uses actual code analysis

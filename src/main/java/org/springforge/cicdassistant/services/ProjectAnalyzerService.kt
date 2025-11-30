@@ -3,10 +3,10 @@ package org.springforge.cicdassistant.services
 import com.intellij.openapi.project.Project
 import org.springforge.cicdassistant.parsers.MavenParseException
 import org.springforge.cicdassistant.parsers.MavenProjectParser
-import org.springforge.cicdassistant.parser.CodeStructureAnalyzer
-import org.springforge.cicdassistant.parser.CodeStructure
-import org.springforge.cicdassistant.parser.GradleBuildAnalyzer
-import org.springforge.cicdassistant.parser.ProjectType
+import org.springforge.cicdassistant.parsers.CodeStructureAnalyzer
+import org.springforge.cicdassistant.parsers.CodeStructure
+import org.springforge.cicdassistant.parsers.GradleBuildAnalyzer
+import org.springforge.cicdassistant.parsers.ProjectType
 import org.w3c.dom.Element
 import java.io.File
 
