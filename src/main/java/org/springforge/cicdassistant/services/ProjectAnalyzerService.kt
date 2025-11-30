@@ -6,7 +6,7 @@ import org.springforge.cicdassistant.parsers.MavenProjectParser
 import org.springforge.cicdassistant.parsers.CodeStructureAnalyzer
 import org.springforge.cicdassistant.parsers.CodeStructure
 import org.springforge.cicdassistant.parsers.GradleBuildAnalyzer
-import org.springforge.cicdassistant.parsers.ProjectType
+import org.springforge.cicdassistant.parsers.ConfigurationScanner
 import org.w3c.dom.Element
 import java.io.File
 
@@ -14,12 +14,14 @@ import java.io.File
  * Service to analyze Spring Boot project structure and extract metadata
  * Uses MavenProjectParser + GradleBuildAnalyzer for build file analysis
  * + CodeStructureAnalyzer for AST-based code analysis
+ * + ConfigurationScanner for application.properties/yml analysis (Issue #5)
  */
 class ProjectAnalyzerService {
 
     private val mavenParser = MavenProjectParser()
     private val gradleAnalyzer = GradleBuildAnalyzer()
     private val codeAnalyzer = CodeStructureAnalyzer()
+    private val configScanner = ConfigurationScanner()
 
     data class ProjectInfo(
         val projectName: String,
@@ -99,6 +101,9 @@ class ProjectAnalyzerService {
                 null
             }
 
+            //  Issue #5: Extract configuration from application.properties/yml
+            val appConfig = configScanner.scan(projectDir)
+
             ProjectInfo(
                 projectName = metadata.name ?: projectName,
                 buildTool = BuildTool.MAVEN,
@@ -106,11 +111,12 @@ class ProjectAnalyzerService {
                 springBootVersion = metadata.springBootVersion ?: metadata.springBootParentVersion ?: "3.2.0",
                 dependencies = dependencies,
                 packageName = extractPackageName(projectDir),
-                hasDatabase = databaseInfo.first,
-                databaseType = databaseInfo.second,
+                hasDatabase = databaseInfo.first || appConfig.datasourceUrl != null,
+                databaseType = configScanner.detectDatabaseFromUrl(appConfig.datasourceUrl) ?: databaseInfo.second,
                 hasRedis = metadata.messagingProviders.any { it.contains("REDIS") },
                 hasRabbitMQ = metadata.messagingProviders.any { it.contains("RABBITMQ") },
                 hasKafka = metadata.messagingProviders.any { it.contains("KAFKA") },
+                port = appConfig.serverPort,
                 //  AST-derived insights
                 codeStructure = codeStructure,
                 hasRestControllers = codeStructure?.restControllers?.isNotEmpty() == true,
@@ -153,6 +159,9 @@ class ProjectAnalyzerService {
                 null
             }
 
+            //  Issue #5: Extract configuration from application.properties/yml
+            val appConfig = configScanner.scan(projectDir)
+
             // 3. Convert to ProjectInfo
             val dependencies = gradleMetadata.dependencies.map { "${it.group}:${it.artifact}" }
             
@@ -163,11 +172,13 @@ class ProjectAnalyzerService {
                 springBootVersion = gradleMetadata.springBootVersion ?: "3.2.0",
                 dependencies = dependencies,
                 packageName = extractPackageName(projectDir),
-                hasDatabase = gradleMetadata.hasSpringBootStarterData(),
-                databaseType = if (gradleMetadata.hasSpringBootStarterData()) "PostgreSQL" else null,
+                hasDatabase = gradleMetadata.hasSpringBootStarterData() || appConfig.datasourceUrl != null,
+                databaseType = configScanner.detectDatabaseFromUrl(appConfig.datasourceUrl) 
+                    ?: if (gradleMetadata.hasSpringBootStarterData()) "PostgreSQL" else null,
                 hasRedis = dependencies.any { it.contains("redis", ignoreCase = true) },
                 hasRabbitMQ = dependencies.any { it.contains("rabbitmq", ignoreCase = true) },
                 hasKafka = dependencies.any { it.contains("kafka", ignoreCase = true) },
+                port = appConfig.serverPort,
                 //  AST-derived insights
                 codeStructure = codeStructure,
                 hasRestControllers = codeStructure?.restControllers?.isNotEmpty() == true,

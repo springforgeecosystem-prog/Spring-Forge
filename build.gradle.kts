@@ -23,9 +23,7 @@ dependencies {
 
     // AST Analysis - JavaParser for Java code analysis
     implementation("com.github.javaparser:javaparser-symbol-solver-core:3.25.7")
-    
-    // Testing
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+
 }
 
 intellij {
