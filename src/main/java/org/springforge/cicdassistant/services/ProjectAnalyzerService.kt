@@ -7,6 +7,8 @@ import org.springforge.cicdassistant.parsers.CodeStructureAnalyzer
 import org.springforge.cicdassistant.parsers.CodeStructure
 import org.springforge.cicdassistant.parsers.GradleBuildAnalyzer
 import org.springforge.cicdassistant.parsers.ConfigurationScanner
+import org.springforge.cicdassistant.mcp.MCPClient
+import org.springforge.cicdassistant.mcp.models.MCPContext
 import org.w3c.dom.Element
 import java.io.File
 
@@ -15,6 +17,7 @@ import java.io.File
  * Uses MavenProjectParser + GradleBuildAnalyzer for build file analysis
  * + CodeStructureAnalyzer for AST-based code analysis
  * + ConfigurationScanner for application.properties/yml analysis (Issue #5)
+ * + MCPClient for packaging context in MCP format (Issue #6)
  */
 class ProjectAnalyzerService {
 
@@ -22,6 +25,7 @@ class ProjectAnalyzerService {
     private val gradleAnalyzer = GradleBuildAnalyzer()
     private val codeAnalyzer = CodeStructureAnalyzer()
     private val configScanner = ConfigurationScanner()
+    private val mcpClient = MCPClient()
 
     data class ProjectInfo(
         val projectName: String,
@@ -371,6 +375,70 @@ class ProjectAnalyzerService {
                 }
             }
         }
+    }
+
+    // ============ MCP Integration Methods (Issue #6d) ============
+
+    /**
+     * Analyzes a Spring Boot project and packages the result in MCP format.
+     * This combines project analysis with MCP packaging and sensitive data filtering.
+     *
+     * @param project The IntelliJ Project to analyze
+     * @return MCPContext with filtered sensitive data, ready for AWS Bedrock
+     */
+    fun analyzeProjectWithMCP(project: Project): MCPContext {
+        // 1. Perform standard project analysis
+        val projectInfo = analyzeProject(project)
+        
+        // 2. Package into MCP format
+        val mcpContext = mcpClient.packageContext(projectInfo)
+        
+        // 3. Filter sensitive data before returning
+        return mcpClient.filterSensitiveData(mcpContext)
+    }
+
+    /**
+     * Convenience method: Analyzes project and returns JSON ready for AWS Bedrock API.
+     * This is the recommended method for getting MCP context to send to Claude.
+     *
+     * Workflow:
+     * 1. Analyze Spring Boot project (Maven/Gradle, code structure, config)
+     * 2. Package into MCP format
+     * 3. Filter sensitive data (passwords, API keys, secrets)
+     * 4. Serialize to JSON
+     * 5. Validate size (must be ≤180K tokens for Claude 4)
+     *
+     * @param project The IntelliJ Project to analyze
+     * @return JSON string ready for AWS Bedrock API, or throws exception if context too large
+     * @throws IllegalStateException if context exceeds token limit
+     */
+    fun getMCPContextForBedrock(project: Project): String {
+        // Get filtered MCP context
+        val mcpContext = analyzeProjectWithMCP(project)
+        
+        // Validate size before serialization
+        if (!mcpClient.validateContextSize(mcpContext)) {
+            val sizeInfo = mcpClient.getContextSizeInfo(mcpContext)
+            throw IllegalStateException(
+                "MCP context too large for Claude 4: ${sizeInfo["estimated_tokens"]} tokens " +
+                "(max: ${sizeInfo["max_tokens"]}). Consider reducing context or implementing chunking."
+            )
+        }
+        
+        // Serialize to JSON
+        return mcpClient.serializeForBedrock(mcpContext)
+    }
+
+    /**
+     * Gets detailed size information about the MCP context for a project.
+     * Useful for monitoring and debugging context size issues.
+     *
+     * @param project The IntelliJ Project to analyze
+     * @return Map with size metrics (characters, tokens, percentage used, within_limit)
+     */
+    fun getMCPContextSizeInfo(project: Project): Map<String, Any> {
+        val mcpContext = analyzeProjectWithMCP(project)
+        return mcpClient.getContextSizeInfo(mcpContext)
     }
 }
 
