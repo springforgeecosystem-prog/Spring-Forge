@@ -36,6 +36,32 @@ class MCPClient {
          * Approximation: 4 characters per token (Claude tokenization)
          */
         const val CHARS_PER_TOKEN = 4
+        
+        /**
+         * Placeholder for filtered sensitive data
+         */
+        const val FILTERED_PLACEHOLDER = "***FILTERED***"
+        
+        /**
+         * Sensitive key patterns to detect in configuration properties
+         */
+        private val SENSITIVE_KEY_PATTERNS = listOf(
+            Regex("password", RegexOption.IGNORE_CASE),
+            Regex("passwd", RegexOption.IGNORE_CASE),
+            Regex("pwd", RegexOption.IGNORE_CASE),
+            Regex("secret", RegexOption.IGNORE_CASE),
+            Regex("api[_-]?key", RegexOption.IGNORE_CASE),
+            Regex("access[_-]?key", RegexOption.IGNORE_CASE),
+            Regex("private[_-]?key", RegexOption.IGNORE_CASE),
+            Regex("token", RegexOption.IGNORE_CASE),
+            Regex("auth", RegexOption.IGNORE_CASE),
+            Regex("credentials?", RegexOption.IGNORE_CASE),
+            Regex("jwt", RegexOption.IGNORE_CASE),
+            Regex("bearer", RegexOption.IGNORE_CASE),
+            Regex("oauth", RegexOption.IGNORE_CASE),
+            Regex("aws[_-]?secret", RegexOption.IGNORE_CASE),
+            Regex("aws[_-]?access", RegexOption.IGNORE_CASE)
+        )
     }
 
     /**
@@ -64,6 +90,31 @@ class MCPClient {
      */
     fun serializeForBedrock(mcpContext: MCPContext): String {
         return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(mcpContext)
+    }
+
+    /**
+     * Filters sensitive data from MCPContext before sending to Bedrock.
+     * Removes passwords, API keys, tokens, and other credentials.
+     *
+     * @param mcpContext The context to filter
+     * @return Filtered MCPContext with sensitive data removed
+     */
+    fun filterSensitiveData(mcpContext: MCPContext): MCPContext {
+        val filteredConfiguration = mcpContext.configuration?.let { config ->
+            MCPConfiguration(
+                serverPort = config.serverPort,
+                datasourceUrl = sanitizeDatasourceUrl(config.datasourceUrl),
+                datasourceDriver = config.datasourceDriver,
+                datasourceUsername = if (config.datasourceUsername != null) FILTERED_PLACEHOLDER else null,
+                datasourcePassword = if (config.datasourcePassword != null) FILTERED_PLACEHOLDER else null,
+                activeProfiles = config.activeProfiles,
+                additionalProperties = filterAdditionalProperties(config.additionalProperties)
+            )
+        }
+        
+        return mcpContext.copy(
+            configuration = filteredConfiguration
+        )
     }
 
     /**
@@ -215,5 +266,55 @@ class MCPClient {
                 }
             }
         )
+    }
+
+    /**
+     * Sanitizes datasource URLs by removing embedded credentials.
+     * Example: jdbc:postgresql://user:pass@localhost:5432/db 
+     *       -> jdbc:postgresql://localhost:5432/db
+     *
+     * @param url The datasource URL to sanitize
+     * @return Sanitized URL with credentials removed
+     */
+    private fun sanitizeDatasourceUrl(url: String?): String? {
+        if (url == null) return null
+        
+        // Pattern to match user:pass@ in JDBC URLs
+        val credentialPattern = Regex("://([^:]+):([^@]+)@")
+        
+        return if (credentialPattern.containsMatchIn(url)) {
+            credentialPattern.replace(url, "://$FILTERED_PLACEHOLDER@")
+        } else {
+            url
+        }
+    }
+
+    /**
+     * Filters sensitive data from additional properties map.
+     * Checks property keys against sensitive patterns and replaces values.
+     *
+     * @param properties The properties map to filter
+     * @return Filtered properties map
+     */
+    private fun filterAdditionalProperties(properties: Map<String, String>): Map<String, String> {
+        return properties.mapValues { (key, value) ->
+            if (isSensitiveKey(key)) {
+                FILTERED_PLACEHOLDER
+            } else {
+                value
+            }
+        }
+    }
+
+    /**
+     * Checks if a property key matches any sensitive patterns.
+     *
+     * @param key The property key to check
+     * @return true if the key is sensitive, false otherwise
+     */
+    private fun isSensitiveKey(key: String): Boolean {
+        return SENSITIVE_KEY_PATTERNS.any { pattern ->
+            pattern.containsMatchIn(key)
+        }
     }
 }
