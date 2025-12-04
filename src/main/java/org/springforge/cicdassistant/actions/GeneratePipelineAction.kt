@@ -8,6 +8,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
+import org.springforge.cicdassistant.bedrock.BedrockClient
 import org.springforge.cicdassistant.services.ClaudeService
 import org.springforge.cicdassistant.services.ProjectAnalyzerService
 import java.io.File
@@ -96,18 +97,25 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
         project: com.intellij.openapi.project.Project,
         indicator: ProgressIndicator
     ) {
-        indicator.text = "Analyzing codebase structure with AST..."
+        indicator.text = "Analyzing project with MCP context..."
         indicator.fraction = 0.3
 
-        //  Get full AST-analyzed project info
         val analyzerService = ProjectAnalyzerService()
-        val analyzedInfo = analyzerService.analyzeProject(project)
+        
+        indicator.text = "Generating MCP-aware Dockerfile with Claude 4 Sonnet..."
+        indicator.fraction = 0.5
 
-        indicator.text = "Generating intelligent Dockerfile with Claude Sonnet 4.5..."
-        indicator.fraction = 0.6
+        // Get MCP-formatted context for Bedrock
+        val mcpContext = analyzerService.getMCPContextForBedrock(project)
+        
+        indicator.text = "Calling AWS Bedrock with enhanced prompts..."
+        indicator.fraction = 0.7
 
-        //  Use AST-aware generation instead of string-based
-        val dockerfile = claudeService.generateDockerfileFromAnalysis(analyzedInfo)
+        // Use BedrockClient with architecture detection and prefill
+        val bedrockClient = BedrockClient()
+        val dockerfile = bedrockClient.generateDockerfile(mcpContext, usePrefill = true)
+        bedrockClient.close()
+        
         saveToFile(project, "Dockerfile", dockerfile)
 
         indicator.text = "Dockerfile generated!"
@@ -180,9 +188,16 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
         project: com.intellij.openapi.project.Project,
         indicator: ProgressIndicator
     ) {
-        indicator.text = "Generating Dockerfile..."
+        indicator.text = "Generating Dockerfile with MCP context..."
         indicator.fraction = 0.2
-        val dockerfile = claudeService.generateDockerfile(projectInfo)
+        
+        // Use BedrockClient for Dockerfile generation
+        val analyzerService = ProjectAnalyzerService()
+        val mcpContext = analyzerService.getMCPContextForBedrock(project)
+        val bedrockClient = BedrockClient()
+        val dockerfile = bedrockClient.generateDockerfile(mcpContext, usePrefill = true)
+        bedrockClient.close()
+        
         saveToFile(project, "Dockerfile", dockerfile)
 
         indicator.text = "Generating GitHub Actions workflow..."

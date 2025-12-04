@@ -74,7 +74,7 @@ class MCPClient {
      */
     fun packageContext(projectInfo: ProjectInfo): MCPContext {
         return MCPContext(
-            metadata = buildMetadata(),
+            metadata = buildMetadata(projectInfo),
             project = buildMCPProject(projectInfo),
             configuration = buildMCPConfiguration(projectInfo),
             codeStructure = buildMCPCodeStructure(projectInfo.codeStructure)
@@ -152,13 +152,20 @@ class MCPClient {
     // ============ Private Helper Methods ============
 
     /**
-     * Builds MCPMetadata with current timestamp and version info.
+     * Builds MCPMetadata with current timestamp, version info, and architecture type detection.
      */
-    private fun buildMetadata(): MCPMetadata {
+    private fun buildMetadata(projectInfo: ProjectInfo): MCPMetadata {
+        // Detect architecture type from ProjectInfo
+        val architectureType = when (projectInfo.architectureType) {
+            "INTELLIJ_PLUGIN" -> "INTELLIJ_PLUGIN"
+            else -> "SPRING_BOOT"
+        }
+        
         return MCPMetadata(
             analysisTimestamp = Instant.now().toString(),
             pluginVersion = "1.0-SNAPSHOT",
-            mcpVersion = "1.0"
+            mcpVersion = "1.0",
+            architectureType = architectureType
         )
     }
 

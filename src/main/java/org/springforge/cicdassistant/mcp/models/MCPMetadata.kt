@@ -10,6 +10,7 @@ import java.time.Instant
  * @property analysisTimestamp ISO-8601 formatted timestamp of when the analysis was performed
  * @property pluginVersion Version of the SpringForge plugin that performed the analysis
  * @property mcpVersion Version of the MCP specification being used (currently "1.0")
+ * @property architectureType Type of project architecture ("SPRING_BOOT" or "INTELLIJ_PLUGIN")
  */
 data class MCPMetadata(
     @JsonProperty("analysis_timestamp")
@@ -19,5 +20,8 @@ data class MCPMetadata(
     val pluginVersion: String = "1.0-SNAPSHOT",
 
     @JsonProperty("mcp_version")
-    val mcpVersion: String = "1.0"
+    val mcpVersion: String = "1.0",
+
+    @JsonProperty("architecture_type")
+    val architectureType: String = "SPRING_BOOT"
 )
