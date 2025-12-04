@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="fix: fixed spring boot  initializer boot version issue">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ComposerSettings">
+    <execution />
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <task path="$PROJECT_DIR$">
+          <activation>
+            <after_sync>
+              <task name="setupDependencies" />
+            </after_sync>
+          </activation>
+        </task>
+        <projects_view>
+          <tree_state>
+            <expand>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="SpringForge-CodeGeneration" type="f1a62948:ProjectNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="SpringForge-CodeGeneration" type="f1a62948:ProjectNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="SpringForge-CodeGeneration" type="f1a62948:ProjectNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+                <item name="build" type="c8890929:TasksNode$1" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="SpringForge-CodeGeneration" type="f1a62948:ProjectNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+                <item name="intellij" type="c8890929:TasksNode$1" />
+              </path>
+            </expand>
+            <select />
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Kotlin Class" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$/.." value="main" />
+        <entry key="$PROJECT_DIR$" value="feat/FeatureExtractor" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="ROOT_SYNC" value="DONT_SYNC" />
+  </component>
+  <component name="KotlinCodeInsightWorkspaceSettings">
+    <option name="optimizeImportsOnTheFly" value="true" />
+  </component>
+  <component name="KubernetesApiPersistence">{}</component>
+  <component name="KubernetesApiProvider">{
+  &quot;isMigrated&quot;: true
+}</component>
+  <component name="PhpWorkspaceProjectConfiguration" interpreter_name="C:\xampp\php\php.exe" />
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
+  <component name="ProjectId" id="34EE1lsZYUiWvb1711pHQMirRQo" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
+    &quot;Gradle.Build SpringForge-CodeGeneration.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.SpringForge-CodeGeneration [:Main.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.SpringForge-CodeGeneration [build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.SpringForge-CodeGeneration [clean].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.SpringForge-CodeGeneration [runIde].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.SpringForge-CodeGeneration [setupDependencies].executor&quot;: &quot;Run&quot;,
+    &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/new-project-scaffold&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/test&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;onboarding.tips.debug.path&quot;: &quot;E:/Edu/Research/SpringForge/SpringForge-CodeGeneration/src/main/java/org/SpringForge/Main.java&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;reference.settingsdialog.project.gradle&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\springforge\codegeneration\analysis" />
+      <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\springforge\codegeneration" />
+      <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\CodeGeneration" />
+      <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\RuntimeErrorAnalysis" />
+      <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\QualityAssuranceEngine" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Gradle.SpringForge-CodeGeneration [runIde]">
+    <configuration name="SpringForge-CodeGeneration [build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="build" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <configuration name="SpringForge-CodeGeneration [clean]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="clean" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <configuration name="SpringForge-CodeGeneration [runIde]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="runIde" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Gradle.SpringForge-CodeGeneration [runIde]" />
+        <item itemvalue="Gradle.SpringForge-CodeGeneration [clean]" />
+        <item itemvalue="Gradle.SpringForge-CodeGeneration [build]" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-9823dce3aa75-fdfe4dae3a2d-intellij.indexing.shared.core-IU-243.21565.193" />
+        <option value="bundled-js-predefined-d6986cc7102b-e768b9ed790e-JavaScript-IU-243.21565.193" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="" />
+      <created>1760770119058</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1760770119058</updated>
+      <workItem from="1760770120112" duration="1073000" />
+      <workItem from="1760763397405" duration="3320000" />
+      <workItem from="1760767056676" duration="54000" />
+      <workItem from="1760790705366" duration="3005000" />
+      <workItem from="1760799598279" duration="1146000" />
+      <workItem from="1760876913835" duration="633000" />
+      <workItem from="1763109230946" duration="2928000" />
+      <workItem from="1763269553438" duration="666000" />
+      <workItem from="1763291494432" duration="651000" />
+      <workItem from="1763299174893" duration="27000" />
+      <workItem from="1763299488197" duration="16000" />
+      <workItem from="1763299650020" duration="32000" />
+      <workItem from="1763299823042" duration="10000" />
+      <workItem from="1763299951645" duration="140000" />
+      <workItem from="1763300218317" duration="17000" />
+      <workItem from="1763300753780" duration="131000" />
+      <workItem from="1763300900852" duration="378000" />
+      <workItem from="1763392844629" duration="341000" />
+      <workItem from="1763393203707" duration="37000" />
+      <workItem from="1763393302865" duration="3893000" />
+      <workItem from="1763790745236" duration="697000" />
+      <workItem from="1763826492238" duration="1380000" />
+      <workItem from="1763828202994" duration="18000" />
+      <workItem from="1763828724062" duration="11000" />
+      <workItem from="1763828815766" duration="18000" />
+      <workItem from="1763829682130" duration="43000" />
+      <workItem from="1763833466104" duration="11000" />
+      <workItem from="1764126798547" duration="3484000" />
+      <workItem from="1764134969264" duration="49000" />
+    </task>
+    <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
+      <option name="closed" value="true" />
+      <created>1763115008718</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1763115008718</updated>
+    </task>
+    <task id="LOCAL-00002" summary="feat(yamlparser): initialize YAML parser module">
+      <option name="closed" value="true" />
+      <created>1763395830071</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1763395830071</updated>
+    </task>
+    <task id="LOCAL-00003" summary="feat(FeatureExtracter):Initial Structure for feature extractor module added">
+      <option name="closed" value="true" />
+      <created>1763829104741</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1763829104741</updated>
+    </task>
+    <task id="LOCAL-00004" summary="feat(FeatureExtracter):Implemented advance ATS base feature extracter">
+      <option name="closed" value="true" />
+      <created>1763829142366</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1763829142366</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Improvement: Enhanced heuristic validation layer after predicting the software architecture">
+      <option name="closed" value="true" />
+      <created>1764130998601</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1764130998601</updated>
+    </task>
+    <task id="LOCAL-00006" summary="feat(new-project-scaffold): Initial structure for new project scaffolding">
+      <option name="closed" value="true" />
+      <created>1764131097566</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131097566</updated>
+    </task>
+    <task id="LOCAL-00007" summary="create: add Zip utility to extract downloaded archive">
+      <option name="closed" value="true" />
+      <created>1764131162403</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131162403</updated>
+    </task>
+    <task id="LOCAL-00008" summary="create: TemplateGenerator to create architecture folders">
+      <option name="closed" value="true" />
+      <created>1764131213225</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131213225</updated>
+    </task>
+    <task id="LOCAL-00009" summary="create: Add CreateProjectDialog (choose architecture &amp; options)">
+      <option name="closed" value="true" />
+      <created>1764131657816</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131657816</updated>
+    </task>
+    <task id="LOCAL-00010" summary="create: Add CreateNewProjectAction to wire UI and do work">
+      <option name="closed" value="true" />
+      <created>1764131672564</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131672564</updated>
+    </task>
+    <task id="LOCAL-00011" summary="update: plugin.xml - add create project action">
+      <option name="closed" value="true" />
+      <created>1764131690395</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131690395</updated>
+    </task>
+    <task id="LOCAL-00012" summary="create: add small helper to convert arch enum (cleanup)">
+      <option name="closed" value="true" />
+      <created>1764131703214</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131703214</updated>
+    </task>
+    <task id="LOCAL-00013" summary="fix: improve TemplateGenerator to write package-info placeholder">
+      <option name="closed" value="true" />
+      <created>1764131762688</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131762688</updated>
+    </task>
+    <task id="LOCAL-00014" summary="add: add progress notifications improvements and safety checks">
+      <option name="closed" value="true" />
+      <created>1764131952830</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1764131952830</updated>
+    </task>
+    <task id="LOCAL-00015" summary="fix: fixed spring boot  initializer boot version issue">
+      <option name="closed" value="true" />
+      <created>1764134730844</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1764134730844</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="RECENT_FILTERS">
+      <map>
+        <entry key="Branch">
+          <value>
+            <list>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="feat/YamlParser" />
+                </option>
+              </RecentGroup>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="feat/FeatureExtractor" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
+    <MESSAGE value="feat(yamlvalidator): add initial schema validation logic" />
+    <MESSAGE value="feat(yamlparser): initialize YAML parser module" />
+    <MESSAGE value="feat(FeatureExtracter):Initial Structure for feature extractor module added" />
+    <MESSAGE value="feat(FeatureExtracter):Implemented advance ATS base feature extracter" />
+    <MESSAGE value="Improvement: Enhanced heuristic validation layer after predicting the software architecture" />
+    <MESSAGE value="feat(new-project-scaffold): Initial structure for new project scaffolding" />
+    <MESSAGE value="create: add Zip utility to extract downloaded archive" />
+    <MESSAGE value="create: TemplateGenerator to create architecture folders" />
+    <MESSAGE value="create: Add CreateProjectDialog (choose architecture &amp; options)" />
+    <MESSAGE value="create: Add CreateNewProjectAction to wire UI and do work" />
+    <MESSAGE value="update: plugin.xml - add create project action" />
+    <MESSAGE value="create: add small helper to convert arch enum (cleanup)" />
+    <MESSAGE value="fix: improve TemplateGenerator to write package-info placeholder" />
+    <MESSAGE value="add: add progress notifications improvements and safety checks" />
+    <MESSAGE value="fix: fixed spring boot  initializer boot version issue" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: fixed spring boot  initializer boot version issue" />
+  </component>
+</project>
