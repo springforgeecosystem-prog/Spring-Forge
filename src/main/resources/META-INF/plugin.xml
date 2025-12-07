@@ -11,8 +11,10 @@
     <depends>com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="SpringForge" displayType="BALLOON" isLogByDefault="true"/>
+        <executionListener
+                implementation="org.springforge.runtimeanalysis.console.RunListener"/>
     </extensions>
+
 
     <actions>
 
@@ -34,16 +36,16 @@
                     text="Smart Refactor"
                     description="Refactor Spring Boot files"/>
 
-            <action id="SpringForge.Debugger.Action"
-                    class="org.springforge.runtimeanalysis.actions.StartDebuggerAction"
-                    text="Start Runtime Debugger"
-                    description="Debugger module"/>
-
             <action id="SpringForge.CICD.Action"
                     class="org.springforge.cicdassistant.actions.GeneratePipelineAction"
                     text="Generate CI/CD Pipeline"
                     description="Generate base CI/CD configuration"/>
 
+            <action id="SpringForge.AnalyzeFromConsole"
+                    class="org.springforge.runtimeanalysis.actions.AnalyzeErrorAction"
+                    text="Analyze with SpringForge"
+                    description="Analyze selected console stacktrace">
+            </action>
         </group>
 
     </actions>

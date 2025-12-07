@@ -5,22 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlvalidator): add initial schema validation logic">
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/actions/GeneratePipelineAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GenerateCodeAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/actions/SmartRefactorAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/StartDebuggerAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/$PROJECT_FILE$" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/qaplug_profiles.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/AnalyzeErrorAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/collector/ErrorCollector.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/collector/FileClassifier.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/ConsoleErrorListener.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/ErrorStore.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/RunListener.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/network/AnalysisResponse.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/actions/OpenInputYmlAction.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/analysis/ProjectAnalyzer.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/parser/YamlParser.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/parser/YamlWriter.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/service/InferenceClient.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/service/InputModel.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/service/ParseResult.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/ui/YamlPreviewDialog.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/validation/YamlAutoFixer.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/validation/YamlSchema.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/SpringForge/validation/YamlValidator.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/StartDebuggerAction.kt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -53,23 +52,6 @@
                 <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
                 <item name="SpringForge-CodeGeneration" type="f1a62948:ProjectNode" />
               </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="SpringForge-CodeGeneration" type="f1a62948:ProjectNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="SpringForge-CodeGeneration" type="f1a62948:ProjectNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="build" type="c8890929:TasksNode$1" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="SpringForge-CodeGeneration" type="f1a62948:ProjectNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="intellij" type="c8890929:TasksNode$1" />
-              </path>
             </expand>
             <select />
           </tree_state>
@@ -90,7 +72,7 @@
         <entry key="$PROJECT_DIR$/.." value="main" />
       </map>
     </option>
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="KotlinCodeInsightWorkspaceSettings">
     <option name="optimizeImportsOnTheFly" value="true" />
@@ -99,6 +81,9 @@
   <component name="KubernetesApiProvider">{
   &quot;isMigrated&quot;: true
 }</component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
   <component name="PhpWorkspaceProjectConfiguration" interpreter_name="C:\xampp\php\php.exe" />
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 0
@@ -114,18 +99,21 @@
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
     &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
+    &quot;Gradle.Build Spring-Forge.executor&quot;: &quot;Run&quot;,
     &quot;Gradle.Build SpringForge-CodeGeneration.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Spring-Forge [setupDependencies].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.SpringForge-CodeGeneration [:Main.main()].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.SpringForge-CodeGeneration [build].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.SpringForge-CodeGeneration [clean].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.SpringForge-CodeGeneration [runIde].executor&quot;: &quot;Run&quot;,
     &quot;Gradle.SpringForge-CodeGeneration [setupDependencies].executor&quot;: &quot;Run&quot;,
     &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/yamlValidator&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/error-context-extractor&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/Project/SpringForge/SpringForge-CodeGeneration&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/Y4S1/Research/Repo/Spring-Forge&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -144,6 +132,13 @@
       <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\CodeGeneration" />
       <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\RuntimeErrorAnalysis" />
       <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\SpringForge\QualityAssuranceEngine" />
+    </key>
+    <key name="MoveKotlinTopLevelDeclarationsDialog.RECENTS_KEY">
+      <recent name="org.springforge.runtimeanalysis.network" />
+      <recent name="org.springforge.runtimeanalysis.collector" />
+      <recent name="org.springforge.runtimeanalysis.extensions" />
+      <recent name="org.springforge.runtimeanalysis.services" />
+      <recent name="org.springforge.runtimeanalysis.decorators" />
     </key>
   </component>
   <component name="RunManager" selected="Gradle.SpringForge-CodeGeneration [runIde]">
@@ -221,14 +216,6 @@
       </list>
     </recent_temporary>
   </component>
-  <component name="SharedIndexes">
-    <attachedChunks>
-      <set>
-        <option value="bundled-jdk-9f38398b9061-39b83d9b5494-intellij.indexing.shared.core-IU-241.15989.150" />
-        <option value="bundled-js-predefined-1d06a55b98c1-91d5c284f522-JavaScript-IU-241.15989.150" />
-      </set>
-    </attachedChunks>
-  </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -253,6 +240,17 @@
       <workItem from="1763299951645" duration="140000" />
       <workItem from="1763300218317" duration="17000" />
       <workItem from="1763300753780" duration="131000" />
+      <workItem from="1764096855770" duration="2899000" />
+      <workItem from="1765566560385" duration="1783000" />
+      <workItem from="1765600133707" duration="9154000" />
+      <workItem from="1765612784400" duration="239000" />
+      <workItem from="1765613041546" duration="647000" />
+      <workItem from="1765613804774" duration="84000" />
+      <workItem from="1765619654646" duration="9090000" />
+      <workItem from="1765973427632" duration="28000" />
+      <workItem from="1765991335610" duration="26000" />
+      <workItem from="1766737532879" duration="1182000" />
+      <workItem from="1766741063433" duration="5686000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
