@@ -67,13 +67,16 @@ class BedrockClient {
      * @throws BedrockException if the API call fails
      */
     fun generateDockerfile(mcpContext: String, usePrefill: Boolean = true): String {
-        // Extract architecture type from MCP context
+        // Extract architecture type from MCP context JSON
         val architectureType = extractArchitectureType(mcpContext)
+        
+        println("[BedrockClient] Building Dockerfile for architecture: $architectureType")
         
         val prompt = buildDockerfilePrompt(mcpContext, architectureType)
         
         return if (usePrefill) {
             val prefill = buildDockerfilePrefill(mcpContext, architectureType)
+            println("[BedrockClient] Using prefill technique for $architectureType")
             invokeModelWithPrefill(prompt, prefill)
         } else {
             invokeModel(prompt)
@@ -107,15 +110,34 @@ class BedrockClient {
     
     /**
      * Extracts architecture type from MCP context JSON.
+     * Checks metadata.architecture_type (correct location in MCP format).
+     * 
      * @param mcpContext JSON string containing MCP context
      * @return Architecture type ("SPRING_BOOT" or "INTELLIJ_PLUGIN")
      */
     private fun extractArchitectureType(mcpContext: String): String {
         return try {
+            // Parse JSON to map
             val contextMap: Map<String, Any> = objectMapper.readValue(mcpContext)
             val metadata = contextMap["metadata"] as? Map<*, *>
-            metadata?.get("architecture_type") as? String ?: "SPRING_BOOT"
+            
+            // Debug: print all metadata keys
+            println("[BedrockClient] Metadata keys: ${metadata?.keys}")
+            
+            // Try both snake_case and camelCase (Jackson might serialize either way)
+            val archType = (metadata?.get("architecture_type") ?: metadata?.get("architectureType")) as? String
+            
+            println("[BedrockClient] Extracted architecture type: ${archType ?: "null"}")
+            
+            if (archType == null) {
+                println("[BedrockClient] ⚠ Architecture type is null! MCP JSON preview:")
+                println(mcpContext.take(500))
+            }
+            
+            archType ?: "SPRING_BOOT"
         } catch (e: Exception) {
+            println("[BedrockClient] ❌ Error extracting architecture type: ${e.message}")
+            e.printStackTrace()
             "SPRING_BOOT" // Default fallback
         }
     }
