@@ -33,6 +33,7 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
 
         val selectedSource = sourceDialog.selectedSource
         val githubUrl = sourceDialog.githubUrl
+        val githubBranch = sourceDialog.githubBranch
 
         // Step 2: Show generation options dialog
         val options = arrayOf(
@@ -80,11 +81,11 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
                             val connector = GitHubMCPServerConnector()
                             val githubClient = GitHubMCPClient(connector)
 
-                            indicator.text = "Analyzing GitHub repository: $githubUrl..."
+                            indicator.text = "Analyzing GitHub repository: $githubUrl (branch: $githubBranch)..."
                             indicator.fraction = 0.2
 
                             runBlocking {
-                                githubClient.analyzeGitHubRepository(githubUrl)
+                                githubClient.analyzeGitHubRepository(githubUrl, githubBranch)
                             }
                         }
                     }
