@@ -355,11 +355,11 @@ $mcpContext
 
 6. **Port Configuration**:
    - Extract from MCP: configuration.server_port (default 8080)
-   - Use EXPOSE directive
+   - Use EXPOSE directive with the extracted port
 
-7. **Database Configuration** (if database_type present):
+7. **Database Configuration** (if project.database_type is present):
    - Add ENV variables (empty values):
-     * JDBC_URL=jdbc:{database_type}://db:3306/{project.name}
+     * JDBC_URL={configuration.datasource_url} (use the actual datasource URL from configuration)
      * DB_USERNAME=
      * DB_PASSWORD=
 
@@ -544,7 +544,7 @@ $mcpContext
 5. **Environment Variables**:
    - SPRING_PROFILES_ACTIVE: production
    - JAVA_OPTS: -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
-   - If database configured (configuration.database_type):
+   - If database configured (project.database_type is present):
      * JDBC_URL: Use ConfigMap reference
      * DB_USERNAME: Use Secret reference
      * DB_PASSWORD: Use Secret reference
@@ -563,11 +563,11 @@ $mcpContext
    - tier: backend
    - managed-by: springforge
 
-8. **ConfigMap Reference** (if database present):
+8. **ConfigMap Reference** (if project.database_type present):
    - Add commented example ConfigMap for database URL
    - Name: {project.name}-config
 
-9. **Secret Reference** (if database present):
+9. **Secret Reference** (if project.database_type present):
    - Add commented example Secret for credentials
    - Name: {project.name}-secrets
 </instructions>
@@ -578,9 +578,9 @@ Generate complete YAML manifests in this order:
 2. '---' separator
 3. Service manifest
 4. '---' separator
-5. ConfigMap example (commented) if database present
+5. ConfigMap example (commented) if project.database_type present
 6. '---' separator
-7. Secret example (commented) if database present
+7. Secret example (commented) if project.database_type present
 
 Do NOT include:
 - Markdown code blocks (```yaml)
