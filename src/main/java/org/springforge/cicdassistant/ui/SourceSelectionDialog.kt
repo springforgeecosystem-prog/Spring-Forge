@@ -7,7 +7,12 @@ import com.intellij.ui.components.JBTextField
 import org.springforge.cicdassistant.config.EnvironmentConfig
 import java.awt.BorderLayout
 import java.awt.GridLayout
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import javax.swing.*
+import kotlinx.coroutines.*
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * Source type for project analysis
@@ -43,6 +48,9 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
     private val localRadio = JBRadioButton("Local Project (Current IntelliJ Project)", true)
     private val githubRadio = JBRadioButton("GitHub Repository")
     private val githubUrlField = JBTextField("https://github.com/spring-projects/spring-petclinic", 40)
+    private val githubBranchComboBox = JComboBox<String>(arrayOf("main"))
+    private val fetchBranchesButton = JButton("Fetch Branches")
+    private var fetchedBranches: List<String> = emptyList()
 
     /**
      * Selected source type (LOCAL or GITHUB)
@@ -58,8 +66,19 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
     var githubUrl: String = ""
         private set
 
+    /**
+     * GitHub branch name (only valid if selectedSource == GITHUB)
+     * Only valid after dialog is closed with OK
+     */
+    var githubBranch: String = "main"
+        private set
+
     init {
         title = "Select Project Source"
+
+        // Make combobox editable for search/custom input
+        githubBranchComboBox.isEditable = true
+
         init()
     }
 
@@ -91,17 +110,23 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
             panel.add(warningPanel, BorderLayout.SOUTH)
         }
 
-        // Enable/disable URL field based on selection
+        // Enable/disable URL and branch fields based on selection
         localRadio.addActionListener {
             githubUrlField.isEnabled = false
+            githubBranchComboBox.isEnabled = false
+            fetchBranchesButton.isEnabled = false
         }
 
         githubRadio.addActionListener {
             githubUrlField.isEnabled = true
+            githubBranchComboBox.isEnabled = true
+            fetchBranchesButton.isEnabled = true
             githubUrlField.requestFocus()
         }
 
         githubUrlField.isEnabled = false
+        githubBranchComboBox.isEnabled = false
+        fetchBranchesButton.isEnabled = false
 
         return panel
     }
@@ -123,16 +148,38 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
     }
 
     /**
-     * Create input panel for GitHub repository URL
+     * Create input panel for GitHub repository URL and branch
      */
     private fun createGitHubInputPanel(): JComponent {
         val panel = JPanel(BorderLayout(5, 5))
         panel.border = BorderFactory.createEmptyBorder(0, 30, 0, 0)
 
+        // Input fields panel
+        val inputPanel = JPanel(GridLayout(2, 1, 5, 5))
+
         // URL input field
         val urlPanel = JPanel(BorderLayout(5, 0))
         urlPanel.add(JLabel("Repository URL:"), BorderLayout.WEST)
         urlPanel.add(githubUrlField, BorderLayout.CENTER)
+        inputPanel.add(urlPanel)
+
+        // Branch selection with fetch button
+        val branchPanel = JPanel(BorderLayout(5, 0))
+        branchPanel.add(JLabel("Branch:"), BorderLayout.WEST)
+
+        // Branch combo box with button
+        val branchInputPanel = JPanel(BorderLayout(3, 0))
+        branchInputPanel.add(githubBranchComboBox, BorderLayout.CENTER)
+        branchInputPanel.add(fetchBranchesButton, BorderLayout.EAST)
+        branchPanel.add(branchInputPanel, BorderLayout.CENTER)
+
+        inputPanel.add(branchPanel)
+
+        // Setup fetch branches button
+        fetchBranchesButton.toolTipText = "Fetch available branches from repository"
+        fetchBranchesButton.addActionListener {
+            fetchBranches()
+        }
 
         // Description
         val descLabel = JLabel(
@@ -148,7 +195,7 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
             "</small></html>"
         )
 
-        panel.add(urlPanel, BorderLayout.NORTH)
+        panel.add(inputPanel, BorderLayout.NORTH)
         panel.add(Box.createVerticalStrut(5), BorderLayout.CENTER)
         panel.add(descLabel, BorderLayout.SOUTH)
 
@@ -183,6 +230,7 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
     override fun doOKAction() {
         selectedSource = if (localRadio.isSelected) SourceType.LOCAL else SourceType.GITHUB
         githubUrl = githubUrlField.text.trim()
+        githubBranch = (githubBranchComboBox.selectedItem as? String)?.trim()?.ifBlank { "main" } ?: "main"
 
         // Validate GitHub URL if GitHub source is selected
         if (selectedSource == SourceType.GITHUB) {
@@ -230,6 +278,146 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
         }
 
         super.doOKAction()
+    }
+
+    /**
+     * Fetch branches from GitHub repository
+     */
+    private fun fetchBranches() {
+        val repoUrl = githubUrlField.text.trim()
+
+        if (repoUrl.isBlank()) {
+            showError("Please enter a repository URL first")
+            return
+        }
+
+        if (!isValidGitHubUrl(repoUrl)) {
+            showError("Please enter a valid GitHub repository URL")
+            return
+        }
+
+        // Parse owner and repo from URL
+        val (owner, repo) = try {
+            parseGitHubUrl(repoUrl)
+        } catch (e: Exception) {
+            showError("Invalid GitHub URL format")
+            return
+        }
+
+        // Show loading state
+        fetchBranchesButton.isEnabled = false
+        fetchBranchesButton.text = "Loading..."
+
+        // Fetch branches in background
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val branches = fetchBranchesFromGitHub(owner, repo)
+
+                SwingUtilities.invokeLater {
+                    if (branches.isNotEmpty()) {
+                        fetchedBranches = branches
+
+                        // Update combobox
+                        githubBranchComboBox.removeAllItems()
+                        branches.forEach { branch ->
+                            githubBranchComboBox.addItem(branch)
+                        }
+
+                        // Select first branch (usually main/master)
+                        githubBranchComboBox.selectedIndex = 0
+
+                        showInfo("✓ Fetched ${branches.size} branches")
+                    } else {
+                        showError("No branches found. Repository might be empty or inaccessible.")
+                    }
+
+                    fetchBranchesButton.isEnabled = true
+                    fetchBranchesButton.text = "Fetch Branches"
+                }
+            } catch (e: Exception) {
+                SwingUtilities.invokeLater {
+                    showError("Failed to fetch branches:\n${e.message}\n\nCheck:\n• GitHub PAT is valid\n• Repository exists\n• You have access to the repository")
+                    fetchBranchesButton.isEnabled = true
+                    fetchBranchesButton.text = "Fetch Branches"
+                }
+            }
+        }
+    }
+
+    /**
+     * Fetch branches from GitHub API
+     */
+    private fun fetchBranchesFromGitHub(owner: String, repo: String): List<String> {
+        val token = EnvironmentConfig.GitHub.personalAccessToken
+            ?: throw Exception("GitHub Personal Access Token not configured")
+
+        val apiUrl = "https://api.github.com/repos/$owner/$repo/branches"
+        val connection = URL(apiUrl).openConnection() as HttpURLConnection
+
+        try {
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection.setRequestProperty("Accept", "application/vnd.github+json")
+            connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+
+            val responseCode = connection.responseCode
+            if (responseCode != 200) {
+                val errorStream = connection.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                throw Exception("GitHub API returned $responseCode: $errorStream")
+            }
+
+            val response = connection.inputStream.bufferedReader().readText()
+
+            // Parse JSON response manually (simple approach)
+            val branches = mutableListOf<String>()
+            val namePattern = Regex(""""name"\s*:\s*"([^"]+)"""")
+
+            namePattern.findAll(response).forEach { match ->
+                branches.add(match.groupValues[1])
+            }
+
+            return branches
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * Parse GitHub URL to extract owner and repo
+     */
+    private fun parseGitHubUrl(url: String): Pair<String, String> {
+        // Remove .git suffix if present
+        val cleanUrl = url.removeSuffix(".git").removeSuffix("/")
+
+        // Extract owner/repo from different formats
+        val pattern = Regex("""(?:https?://)?(?:www\.)?github\.com/([^/]+)/([^/]+)""")
+        val match = pattern.find(cleanUrl)
+
+        if (match != null) {
+            return Pair(match.groupValues[1], match.groupValues[2])
+        }
+
+        // Try simple owner/repo format
+        val simplePattern = Regex("""^([^/]+)/([^/]+)$""")
+        val simpleMatch = simplePattern.find(cleanUrl)
+
+        if (simpleMatch != null) {
+            return Pair(simpleMatch.groupValues[1], simpleMatch.groupValues[2])
+        }
+
+        throw IllegalArgumentException("Invalid GitHub URL format")
+    }
+
+    /**
+     * Show info message dialog
+     */
+    private fun showInfo(message: String) {
+        JOptionPane.showMessageDialog(
+            contentPanel,
+            message,
+            "Information",
+            JOptionPane.INFORMATION_MESSAGE
+        )
     }
 
     /**

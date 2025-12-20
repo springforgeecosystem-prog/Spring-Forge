@@ -191,10 +191,22 @@ class ProjectAnalyzerService {
                 hasScheduledTasks = codeStructure?.scheduledTasks?.isNotEmpty() == true,
                 hasMessageListeners = codeStructure?.messageListeners?.isNotEmpty() == true,
                 architectureType = when {
-                    gradleMetadata.isIntellijPlugin() -> "INTELLIJ_PLUGIN"
-                    codeStructure?.architectureType != null -> codeStructure.architectureType.name
-                    gradleMetadata.isSpringBoot() -> "SPRING_BOOT"
-                    else -> "UNKNOWN"
+                    gradleMetadata.isIntellijPlugin() -> {
+                        println("[ProjectAnalyzerService] ✓ Detected INTELLIJ_PLUGIN from Gradle metadata")
+                        "INTELLIJ_PLUGIN"
+                    }
+                    codeStructure?.architectureType != null -> {
+                        println("[ProjectAnalyzerService] ✓ Detected ${codeStructure.architectureType.name} from code structure")
+                        codeStructure.architectureType.name
+                    }
+                    gradleMetadata.isSpringBoot() -> {
+                        println("[ProjectAnalyzerService] ✓ Detected SPRING_BOOT from Gradle metadata")
+                        "SPRING_BOOT"
+                    }
+                    else -> {
+                        println("[ProjectAnalyzerService] ⚠ Unknown architecture type, defaulting to UNKNOWN")
+                        "UNKNOWN"
+                    }
                 }
             )
         } catch (e: Exception) {

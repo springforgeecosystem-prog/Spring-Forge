@@ -28,6 +28,8 @@ import java.time.Instant
 class GitHubMCPClient(
     private val connector: GitHubMCPServerConnector
 ) {
+    // Current branch being analyzed (set by analyzeGitHubRepository)
+    private var branch: String = "main"
 
     /**
      * Analyze a GitHub repository and return MCP context
@@ -36,29 +38,34 @@ class GitHubMCPClient(
      *   - https://github.com/owner/repo
      *   - github.com/owner/repo
      *   - owner/repo
+     * @param branch Branch name (default: "main")
      * @return MCPContext compatible with BedrockClient
      * @throws IllegalArgumentException if URL format is invalid
      * @throws Exception if analysis fails
      */
-    suspend fun analyzeGitHubRepository(repoUrl: String): MCPContext = withContext(Dispatchers.IO) {
+    suspend fun analyzeGitHubRepository(repoUrl: String, branchName: String = "main"): MCPContext = withContext(Dispatchers.IO) {
         val (owner, repo) = parseGitHubUrl(repoUrl)
+        this@GitHubMCPClient.branch = branchName // Store branch for use in file operations
 
         println("\n=== Analyzing GitHub Repository ===")
         println("Owner: $owner")
         println("Repository: $repo")
+        println("Branch: $branchName")
         println("===================================\n")
 
         connector.connect()
 
         try {
             // Skip repository metadata - focus on file content analysis
-            println("[1/6] Analyzing repository: $owner/$repo...")
+            println("[1/6] Analyzing repository: $owner/$repo (branch: $branchName)...")
             println("✓ Repository: $repo")
 
-            // Step 2: Detect build tool (Maven or Gradle)
-            println("[2/6] Detecting build tool...")
+            // Step 2: Detect build tool (Maven or Gradle) and architecture type
+            println("[2/6] Detecting build tool and architecture type...")
             val buildTool = detectBuildTool(owner, repo)
+            val architectureType = detectArchitectureType(owner, repo, buildTool)
             println("✓ Build tool: $buildTool")
+            println("✓ Architecture: $architectureType")
 
             // Step 3: Extract dependencies
             println("[3/6] Extracting dependencies...")
@@ -92,7 +99,7 @@ class GitHubMCPClient(
                 metadata = MCPMetadata(
                     analysisTimestamp = Instant.now().toString(),
                     mcpVersion = "1.0",
-                    architectureType = "SPRING_BOOT" // GitHub repos analyzed as Spring Boot projects
+                    architectureType = architectureType // Detected from build files
                 ),
                 project = MCPProject(
                     name = repo,
@@ -163,27 +170,121 @@ class GitHubMCPClient(
     }
 
     /**
-     * Detect build tool by checking for pom.xml or build.gradle files
+     * Detect build tool by checking for build files in priority order
+     * Priority: Gradle wrappers > Gradle build files > Maven
      */
     private fun detectBuildTool(owner: String, repo: String): String {
-        // Try Maven first
-        return try {
-            getFileContents(owner, repo, "pom.xml")
-            "Maven"
+        // Check for Gradle wrapper first (strongest indicator)
+        try {
+            getFileContents(owner, repo, "gradlew")
+            println("  ✓ Found gradlew - using Gradle")
+            return "Gradle"
         } catch (e: Exception) {
-            // Try Gradle (Kotlin DSL)
-            try {
-                getFileContents(owner, repo, "build.gradle.kts")
-                "Gradle"
-            } catch (e: Exception) {
-                // Try Gradle (Groovy)
+            // Gradle wrapper not found, continue checking
+        }
+
+        // Check for Gradle Kotlin DSL
+        try {
+            val content = getFileContents(owner, repo, "build.gradle.kts")
+            if (content.isNotBlank()) {
+                println("  ✓ Found build.gradle.kts - using Gradle")
+                return "Gradle"
+            }
+        } catch (e: Exception) {
+            // build.gradle.kts not found, continue checking
+        }
+
+        // Check for Gradle Groovy DSL
+        try {
+            val content = getFileContents(owner, repo, "build.gradle")
+            if (content.isNotBlank()) {
+                println("  ✓ Found build.gradle - using Gradle")
+                return "Gradle"
+            }
+        } catch (e: Exception) {
+            // build.gradle not found, continue checking
+        }
+
+        // Check for Maven as fallback
+        try {
+            val content = getFileContents(owner, repo, "pom.xml")
+            if (content.isNotBlank()) {
+                println("  ✓ Found pom.xml - using Maven")
+                return "Maven"
+            }
+        } catch (e: Exception) {
+            // pom.xml not found
+        }
+
+        println("  ⚠ Warning: No build file found (checking gradlew, build.gradle.kts, build.gradle, pom.xml)")
+        return "Unknown"
+    }
+
+    /**
+     * Detect architecture type (INTELLIJ_PLUGIN or SPRING_BOOT)
+     * by analyzing build file plugins
+     */
+    private fun detectArchitectureType(owner: String, repo: String, buildTool: String): String {
+        return when (buildTool) {
+            "Gradle" -> {
                 try {
-                    getFileContents(owner, repo, "build.gradle")
-                    "Gradle"
+                    // Try Kotlin DSL first
+                    val buildContent = try {
+                        getFileContents(owner, repo, "build.gradle.kts")
+                    } catch (e: Exception) {
+                        // Fall back to Groovy DSL
+                        getFileContents(owner, repo, "build.gradle")
+                    }
+
+                    // Check for IntelliJ Platform Plugin
+                    val hasIntellijPlugin = buildContent.contains("org.jetbrains.intellij") ||
+                            buildContent.contains("org.jetbrains.kotlin.jvm") && buildContent.contains("intellij {")
+
+                    if (hasIntellijPlugin) {
+                        println("  ✓ Detected IntelliJ IDEA Plugin project")
+                        return "INTELLIJ_PLUGIN"
+                    }
+
+                    // Check for Spring Boot
+                    val hasSpringBoot = buildContent.contains("org.springframework.boot")
+
+                    if (hasSpringBoot) {
+                        println("  ✓ Detected Spring Boot project")
+                        return "SPRING_BOOT"
+                    }
+
+                    println("  ⚠ Warning: Couldn't determine architecture type, defaulting to SPRING_BOOT")
+                    "SPRING_BOOT"
+
                 } catch (e: Exception) {
-                    println("  Warning: No build file found (pom.xml, build.gradle, or build.gradle.kts)")
-                    "Unknown"
+                    println("  ⚠ Warning: Failed to detect architecture type: ${e.message}")
+                    "SPRING_BOOT"
                 }
+            }
+            "Maven" -> {
+                try {
+                    val pomContent = getFileContents(owner, repo, "pom.xml")
+
+                    // Check for Spring Boot parent or dependency
+                    val hasSpringBoot = pomContent.contains("spring-boot-starter-parent") ||
+                            pomContent.contains("spring-boot-starter")
+
+                    if (hasSpringBoot) {
+                        println("  ✓ Detected Spring Boot project")
+                        return "SPRING_BOOT"
+                    }
+
+                    println("  ⚠ Warning: Couldn't determine architecture type, defaulting to SPRING_BOOT")
+                    "SPRING_BOOT"
+
+                } catch (e: Exception) {
+                    println("  ⚠ Warning: Failed to detect architecture type: ${e.message}")
+                    "SPRING_BOOT"
+                }
+            }
+            else -> {
+                println("  ⚠ Warning: Unknown build tool, defaulting to SPRING_BOOT")
+                "SPRING_BOOT"
             }
         }
     }
@@ -509,7 +610,8 @@ class GitHubMCPClient(
             arguments = mapOf(
                 "owner" to owner,
                 "repo" to repo,
-                "path" to path
+                "path" to path,
+                "ref" to branch // Specify which branch/ref to read from
             )
         )
 
