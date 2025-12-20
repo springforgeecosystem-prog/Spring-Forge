@@ -20,9 +20,18 @@ dependencies {
     implementation(platform("software.amazon.awssdk:bom:2.39.1"))
     implementation("software.amazon.awssdk:bedrockruntime")
     implementation("software.amazon.awssdk:auth")
+    implementation("software.amazon.awssdk:sts") // For credential validation
 
     // AST Analysis - JavaParser for Java code analysis
     implementation("com.github.javaparser:javaparser-symbol-solver-core:3.25.7")
+
+    // MCP Protocol & GitHub MCP Server Integration
+    // OkHttp already included above for HTTP communication
+    // JSON-RPC 2.0 communication (using Jackson which is already included)
+
+    // Kotlin Coroutines for async GitHub operations
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.7.3")
 
 }
 

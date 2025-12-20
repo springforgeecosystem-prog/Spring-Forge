@@ -100,6 +100,27 @@ object EnvironmentConfig {
                 ?: "bedrock-2023-05-31"
     }
 
+    // GitHub MCP Server Configuration
+    object GitHub {
+        val personalAccessToken: String?
+            get() = getEnv("GITHUB_PERSONAL_ACCESS_TOKEN")
+
+        val host: String
+            get() = getEnv("GITHUB_HOST", "https://github.com") ?: "https://github.com"
+
+        val mcpToolsets: String
+            get() = getEnv("GITHUB_TOOLSETS", "context,repos,issues,pull_requests,code_security")
+                ?: "context,repos,issues,pull_requests,code_security"
+
+        val readOnly: Boolean
+            get() = getEnv("GITHUB_READ_ONLY", "true")?.toBoolean() ?: true
+
+        /**
+         * Check if GitHub is configured with a valid PAT
+         */
+        fun isConfigured(): Boolean = !personalAccessToken.isNullOrBlank()
+    }
+
     /**
      * Validate that all required environment variables are set
      * @throws IllegalStateException if required variables are missing
@@ -147,6 +168,12 @@ object EnvironmentConfig {
         println("Claude Model: ${Claude.modelId}")
         println("Max Tokens: ${Claude.maxTokens}")
         println("Anthropic Version: ${Claude.anthropicVersion}")
+        println()
+        println("GitHub MCP Server:")
+        println("  PAT: ${if (GitHub.isConfigured()) "SET (${GitHub.personalAccessToken?.take(8)}...)" else "NOT SET"}")
+        println("  Host: ${GitHub.host}")
+        println("  Toolsets: ${GitHub.mcpToolsets}")
+        println("  Read-Only: ${GitHub.readOnly}")
         println("================================")
     }
 }
