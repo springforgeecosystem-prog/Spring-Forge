@@ -11,31 +11,22 @@ object PromptBuilder {
     ): String {
 
         val sb = StringBuilder()
+        val layers = analysis.layers.map { it.lowercase() }.toSet()
 
-        val detectedLayers = analysis.layers.map { it.lowercase() }.toSet()
-
-        // Determine persistence layer naming
         val persistenceLayer = when {
-            detectedLayers.contains("dao") -> "dao"
-            detectedLayers.contains("repository") -> "repository"
-            else -> "repository" // safe fallback
+            layers.contains("dao") -> "dao"
+            layers.contains("repository") -> "repository"
+            else -> null
         }
 
-        // Logical layers required to make YAML work
-        val logicalLayers = listOf(
-            "entity",
-            persistenceLayer,
-            "service",
-            "controller",
-            "dto"
-        )
+        val modelLayer = when {
+            layers.contains("model") -> "model"
+            layers.contains("dto") -> "dto"
+            else -> null
+        }
 
-        sb.appendLine("### SpringForge – Full Context Code Generation Prompt")
-        sb.appendLine()
+        sb.appendLine("### SpringForge – Full Context Code Generation Prompt\n")
 
-        // ------------------------------------------------------------------
-        // 1. PROJECT CONTEXT (CONSTRAINTS)
-        // ------------------------------------------------------------------
         sb.appendLine("## 1. Project Context (Automatically Analyzed)")
         sb.appendLine("Detected Architecture: ${analysis.detectedArchitecture}")
         sb.appendLine("Base Package: ${analysis.basePackage}")
@@ -48,79 +39,50 @@ object PromptBuilder {
         }
         sb.appendLine()
 
-        // ------------------------------------------------------------------
-        // 2. USER INTENT (SOURCE OF TRUTH)
-        // ------------------------------------------------------------------
         sb.appendLine("## 2. User Intent (From input.yml)")
-        sb.appendLine("Project Name: ${yamlModel.project?.name ?: "N/A"}")
-        sb.appendLine("Language: ${yamlModel.project?.language ?: "N/A"}")
-        sb.appendLine("Framework: ${yamlModel.project?.framework ?: "N/A"}")
-        sb.appendLine()
+        sb.appendLine("Project Name: ${yamlModel.project?.name}")
+        sb.appendLine("Language: ${yamlModel.project?.language}")
+        sb.appendLine("Framework: ${yamlModel.project?.framework}\n")
 
-        // ------------------------------------------------------------------
-        // 3. DOMAIN MODEL (WHAT TO GENERATE)
-        // ------------------------------------------------------------------
         sb.appendLine("## 3. Domain Model")
-
-        sb.appendLine("### Entities (${yamlModel.entities.size} total)")
         yamlModel.entities.forEach { entity ->
             sb.appendLine(" - Entity: ${entity.name}")
-            entity.table_name?.let { sb.appendLine("   Table Name: $it") }
-
-            if (entity.annotations.isNotEmpty()) {
-                sb.appendLine("   Entity Annotations:")
-                entity.annotations.forEach { sb.appendLine("     • $it") }
-            }
-
+            entity.table_name?.let { sb.appendLine("   Table: $it") }
             sb.appendLine("   Fields:")
-            entity.fields.forEach { f ->
-                sb.appendLine("     • ${f.name}: ${f.type}")
-                if (f.constraints.isNotEmpty()) {
-                    sb.appendLine("       Constraints: ${f.constraints}")
-                }
+            entity.fields.forEach {
+                sb.appendLine("     • ${it.name}: ${it.type} (${it.constraints})")
             }
             sb.appendLine()
         }
 
         if (yamlModel.relationships.isNotEmpty()) {
             sb.appendLine("### Relationships")
-            yamlModel.relationships.forEach { r ->
-                sb.appendLine(" - ${r.from} → ${r.to} (${r.type})")
-                r.mapped_by?.let { sb.appendLine("   mapped_by: $it") }
-                if (r.annotations.isNotEmpty()) {
-                    sb.appendLine("   Annotations:")
-                    r.annotations.forEach { sb.appendLine("     • $it") }
-                }
+            yamlModel.relationships.forEach {
+                sb.appendLine(" - ${it.from} → ${it.to} (${it.type})")
             }
             sb.appendLine()
         }
 
-        // ------------------------------------------------------------------
-        // 4. REQUIRED SCAFFOLDING (ARCHITECTURE-AWARE)
-        // ------------------------------------------------------------------
         sb.appendLine("## 4. Required Code Scaffolding")
-
         sb.appendLine("Generate the following layers for ALL entities:")
-        logicalLayers.forEach { sb.appendLine(" - $it") }
+        sb.appendLine(" - entity")
+        persistenceLayer?.let { sb.appendLine(" - $it") }
+        sb.appendLine(" - service")
+        sb.appendLine(" - controller")
+        modelLayer?.let { sb.appendLine(" - $it") }
         sb.appendLine()
 
-        // ------------------------------------------------------------------
-        // 5. HARD CONSTRAINTS (VERY IMPORTANT FOR LLM)
-        // ------------------------------------------------------------------
         sb.appendLine("## 5. Architectural Constraints")
         sb.appendLine("* Follow the existing project folder structure exactly")
-        sb.appendLine("* Use '$persistenceLayer' as the persistence layer")
-        sb.appendLine("* Do NOT introduce new architectural layers")
+        persistenceLayer?.let { sb.appendLine("* Use '$it' as persistence layer") }
+        modelLayer?.let { sb.appendLine("* Use '$it' for request/response models") }
+        sb.appendLine("* Do NOT introduce new layers")
         sb.appendLine("* Do NOT rename existing layers")
         sb.appendLine("* Place generated code under base package: ${analysis.basePackage}")
         sb.appendLine("* Apply detected naming conventions consistently")
-        sb.appendLine("* Ensure all layers are wired correctly (Controller → Service → $persistenceLayer → Entity)")
-        sb.appendLine("* Respect relationships and ownership sides from YAML")
+        sb.appendLine("* Wire layers correctly (Controller → Service → $persistenceLayer → Entity)")
         sb.appendLine()
 
-        // ------------------------------------------------------------------
-        // 6. FINAL INSTRUCTION
-        // ------------------------------------------------------------------
         sb.appendLine("## 6. Final Instruction")
         sb.appendLine(
             "Generate a complete, production-ready Spring Boot scaffolding " +

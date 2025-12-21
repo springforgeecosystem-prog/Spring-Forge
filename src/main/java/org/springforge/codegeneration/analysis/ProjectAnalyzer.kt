@@ -1,53 +1,60 @@
 package org.springforge.codegeneration.analysis
 
-import com.intellij.ide.highlighter.JavaFileType
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiJavaFile
-import com.intellij.psi.PsiManager
-import com.intellij.psi.search.FileTypeIndex
-import com.intellij.psi.search.GlobalSearchScope
-
-data class ArchitectureFeatures(
-    val numJavaFiles: Int,
-    val avgPackageDepth: Double,
-    val controllers: Int,
-    val services: Int,
-    val repositories: Int
-)
+import java.io.File
 
 class ProjectAnalyzer(private val project: Project) {
 
-    fun analyze(): ArchitectureFeatures {
-        val psiManager = PsiManager.getInstance(project)
-        val javaFiles = mutableListOf<PsiJavaFile>()
+    fun analyze(): ProjectAnalysisResult {
+        val projectPath = project.basePath ?: return ProjectAnalysisResult.empty()
+        val srcMainJava = File(projectPath, "src/main/java")
+        if (!srcMainJava.exists()) return ProjectAnalysisResult.empty()
 
-        FileTypeIndex.processFiles(JavaFileType.INSTANCE, { vf ->
-            val psi = psiManager.findFile(vf)
-            if (psi is PsiJavaFile) javaFiles.add(psi)
-            true
-        }, GlobalSearchScope.projectScope(project))
+        // 1. Find Spring Boot application class
+        val applicationFile = srcMainJava.walkTopDown()
+            .firstOrNull { file ->
+                file.isFile &&
+                        file.name.endsWith(".java") &&
+                        file.readText().contains("@SpringBootApplication")
+            } ?: return ProjectAnalysisResult.empty()
 
-        var controllers = 0
-        var services = 0
-        var repos = 0
-        val packageDepths = mutableListOf<Int>()
+        // 2. Base package directory = parent of Application class
+        val basePackageDir = applicationFile.parentFile
 
-        for (jf in javaFiles) {
-            val pkg = jf.packageName
-            packageDepths.add(if (pkg.isBlank()) 0 else pkg.split(".").size)
-            for (cls in jf.classes) {
-                for (annot in cls.annotations) {
-                    val name = annot.qualifiedName ?: annot.text
-                    when {
-                        name.endsWith("RestController") -> controllers++
-                        name.endsWith("Service") -> services++
-                        name.endsWith("Repository") -> repos++
-                    }
+        val basePackage = basePackageDir
+            .relativeTo(srcMainJava)
+            .path
+            .replace(File.separator, ".")
+
+        // 3. Detect layers from subdirectories
+        val layers = basePackageDir.listFiles()
+            ?.filter { it.isDirectory }
+            ?.map { it.name.lowercase() }
+            ?: emptyList()
+
+        // 4. Detect naming conventions
+        val namingConventions = mutableMapOf<String, String>()
+
+        basePackageDir.walkTopDown()
+            .filter { it.isFile && it.name.endsWith(".java") }
+            .forEach { file ->
+                when {
+                    file.name.endsWith("Controller.java") ->
+                        namingConventions["controller"] = "Controller suffix"
+
+                    file.name.endsWith("ServiceImpl.java") ->
+                        namingConventions["service"] = "Impl suffix"
+
+                    file.name.endsWith("DaoImpl.java") ->
+                        namingConventions["dao"] = "Impl suffix"
                 }
             }
-        }
 
-        val avgDepth = if (packageDepths.isEmpty()) 0.0 else packageDepths.average()
-        return ArchitectureFeatures(javaFiles.size, avgDepth, controllers, services, repos)
+        return ProjectAnalysisResult(
+            detectedArchitecture = "layered",
+            basePackage = basePackage,
+            layers = layers,
+            namingConventions = namingConventions
+        )
     }
 }
