@@ -4,9 +4,18 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="fix: fixed spring boot  initializer boot version issue">
+    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="fix: fixed created project not opening issue and enhanced performance">
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GeneratePromptAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalysisResult.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectContextBuilder.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/PromptBuilder.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/InputModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/InputModel.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/ParseResult.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/ParseResult.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/YamlParser.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/YamlParser.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/YamlPreviewDialog.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/YamlPreviewDialog.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlValidator.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlValidator.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -73,7 +82,7 @@
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
         <entry key="$PROJECT_DIR$/.." value="main" />
-        <entry key="$PROJECT_DIR$" value="feat/FeatureExtractor" />
+        <entry key="$PROJECT_DIR$" value="feat/new-project-scaffold" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -97,6 +106,8 @@
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
+    <option name="showMembers" value="true" />
+    <option name="showVisibilityIcons" value="true" />
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
@@ -110,9 +121,9 @@
     &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/new-project-scaffold&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/Prompt-Generator&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/test&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/SpringForge/spring_architectures/clean/2hwan_hood_backend&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -213,8 +224,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-9823dce3aa75-fdfe4dae3a2d-intellij.indexing.shared.core-IU-243.21565.193" />
-        <option value="bundled-js-predefined-d6986cc7102b-e768b9ed790e-JavaScript-IU-243.21565.193" />
+        <option value="bundled-jdk-9f38398b9061-39b83d9b5494-intellij.indexing.shared.core-IU-241.15989.150" />
+        <option value="bundled-js-predefined-1d06a55b98c1-91d5c284f522-JavaScript-IU-241.15989.150" />
       </set>
     </attachedChunks>
   </component>
@@ -255,6 +266,13 @@
       <workItem from="1763833466104" duration="11000" />
       <workItem from="1764126798547" duration="3484000" />
       <workItem from="1764134969264" duration="49000" />
+      <workItem from="1764148877650" duration="1318000" />
+      <workItem from="1764170022982" duration="40000" />
+      <workItem from="1764170749189" duration="13000" />
+      <workItem from="1764213043922" duration="2450000" />
+      <workItem from="1764237069272" duration="2505000" />
+      <workItem from="1764823611835" duration="3230000" />
+      <workItem from="1766293404097" duration="2680000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
@@ -376,7 +394,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764134730844</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="fix: fixed created project not opening issue and enhanced performance">
+      <option name="closed" value="true" />
+      <created>1764135521807</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1764135521807</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -437,6 +463,7 @@
     <MESSAGE value="fix: improve TemplateGenerator to write package-info placeholder" />
     <MESSAGE value="add: add progress notifications improvements and safety checks" />
     <MESSAGE value="fix: fixed spring boot  initializer boot version issue" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix: fixed spring boot  initializer boot version issue" />
+    <MESSAGE value="fix: fixed created project not opening issue and enhanced performance" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: fixed created project not opening issue and enhanced performance" />
   </component>
 </project>
