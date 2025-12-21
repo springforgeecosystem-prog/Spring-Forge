@@ -16,46 +16,82 @@ class YamlPreviewDialog(
         sb.appendLine("│ Parsed input.yml")
         sb.appendLine("└──────────────────────────────────────────────")
         sb.appendLine()
+
+        // -------------------------
+        // PROJECT DETAILS
+        // -------------------------
         sb.appendLine("PROJECT DETAILS")
         sb.appendLine("----------------")
-        sb.appendLine("Project Name : ${model.projectName}")
-        sb.appendLine("Package Root : ${model.packageRoot}")
-        sb.appendLine("Architecture : ${model.architecture ?: "Not specified"}")
+        sb.appendLine("Project Name : ${model.project?.name ?: "N/A"}")
+        sb.appendLine("Language     : ${model.project?.language ?: "N/A"}")
+        sb.appendLine("Framework    : ${model.project?.framework ?: "N/A"}")
         sb.appendLine()
 
+        // -------------------------
+        // ENTITIES
+        // -------------------------
         sb.appendLine("ENTITIES (${model.entities.size})")
         sb.appendLine("----------------")
 
         model.entities.forEach { entity ->
             sb.appendLine("• Entity: ${entity.name}")
-            sb.appendLine("  Fields (${entity.fields.size}):")
 
-            entity.fields.forEach { field ->
-                sb.appendLine("    - ${field.name}: ${field.type}")
+            if (entity.table_name != null) {
+                sb.appendLine("  Table Name: ${entity.table_name}")
+            }
 
-                if (field.annotations.isNotEmpty()) {
-                    sb.appendLine("        Annotations:")
-                    field.annotations.forEach { ann ->
-                        sb.appendLine("           • $ann")
-                    }
-                }
-
-                if (field.constraints.isNotEmpty()) {
-                    sb.appendLine("        Constraints:")
-                    field.constraints.forEach { (k, v) ->
-                        sb.appendLine("           • $k = $v")
-                    }
+            if (entity.annotations.isNotEmpty()) {
+                sb.appendLine("  Annotations:")
+                entity.annotations.forEach { ann ->
+                    sb.appendLine("     • $ann")
                 }
             }
 
-            if (entity.relationships.isNotEmpty()) {
-                sb.appendLine("  Relationships:")
-                entity.relationships.forEach { rel ->
-                    sb.appendLine("    - ${rel.type} → ${rel.targetEntity}")
+            sb.appendLine("  Fields (${entity.fields.size}):")
+            entity.fields.forEach { field ->
+                sb.appendLine("     - ${field.name}: ${field.type}")
+
+                if (field.constraints.isNotEmpty()) {
+                    sb.appendLine("         Constraints:")
+                    field.constraints.forEach { (k, v) ->
+                        sb.appendLine("            • $k = $v")
+                    }
+                }
+
+                if (field.annotations.isNotEmpty()) {
+                    sb.appendLine("         Annotations:")
+                    field.annotations.forEach { ann ->
+                        sb.appendLine("            • $ann")
+                    }
                 }
             }
 
             sb.appendLine()
+        }
+
+        // -------------------------
+        // RELATIONSHIPS
+        // -------------------------
+        if (model.relationships.isNotEmpty()) {
+            sb.appendLine("RELATIONSHIPS (${model.relationships.size})")
+            sb.appendLine("----------------")
+
+            model.relationships.forEach { rel ->
+                sb.appendLine("• ${rel.from} → ${rel.to} (${rel.type})")
+
+                if (rel.mapped_by != null) {
+                    sb.appendLine("    mapped_by: ${rel.mapped_by}")
+                }
+
+                if (rel.annotations.isNotEmpty()) {
+                    sb.appendLine("    Annotations:")
+                    rel.annotations.forEach { ann ->
+                        sb.appendLine("        • $ann")
+                    }
+                }
+
+                sb.appendLine()
+            }
         }
 
         Messages.showInfoMessage(project, sb.toString(), "Parsed input.yml")
