@@ -1,5 +1,6 @@
 package org.springforge.cicdassistant.bedrock
 
+import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.springforge.cicdassistant.config.EnvironmentConfig
@@ -23,6 +24,11 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse
 class BedrockClient {
     
     private val objectMapper = jacksonObjectMapper()
+    
+    // Helper function to parse JSON context safely
+    private fun parseContext(json: String): Map<String, Any> {
+        return objectMapper.readValue(json, object : TypeReference<Map<String, Any>>() {})
+    }
     
     /**
      * AWS Bedrock Runtime client initialized with credentials from .env file.
@@ -109,6 +115,24 @@ class BedrockClient {
     }
     
     /**
+     * Generates Docker Compose configuration using Claude 4 Sonnet.
+     * Automatically detects services needed based on project dependencies.
+     *
+     * @param mcpContext The MCP-formatted project context JSON
+     * @return Generated docker-compose.yml content
+     * @throws BedrockException if the API call fails
+     */
+    fun generateDockerCompose(mcpContext: String): String {
+        println("[BedrockClient] Generating Docker Compose configuration")
+        
+        val services = detectServices(mcpContext)
+        println("[BedrockClient] Detected services: ${services.joinToString(", ")}")
+        
+        val prompt = buildDockerComposePrompt(mcpContext, services)
+        return invokeModel(prompt)
+    }
+    
+    /**
      * Extracts architecture type from MCP context JSON.
      * Checks metadata.architecture_type (correct location in MCP format).
      * 
@@ -118,7 +142,7 @@ class BedrockClient {
     private fun extractArchitectureType(mcpContext: String): String {
         return try {
             // Parse JSON to map
-            val contextMap: Map<String, Any> = objectMapper.readValue(mcpContext)
+            val contextMap = parseContext(mcpContext)
             val metadata = contextMap["metadata"] as? Map<*, *>
             
             // Debug: print all metadata keys
@@ -269,10 +293,15 @@ class BedrockClient {
         } catch (e: Exception) {
             return "FROM " // Minimal fallback
         }
-        
+
         val project = mcpData["project"] as? Map<*, *>
-        val javaVersion = project?.get("java_version") as? String ?: "17"
-        val buildTool = project?.get("build_tool") as? String ?: "maven"
+        // Try both snake_case and camelCase (Jackson serializes as camelCase by default)
+        val javaVersion = (project?.get("javaVersion") ?: project?.get("java_version")) as? String ?: "17"
+        val buildTool = (project?.get("buildTool") ?: project?.get("build_tool")) as? String ?: "maven"
+
+        // DEBUG: Print extracted Java version
+        println("[BedrockClient] Prefill - Extracted Java version: $javaVersion (from MCP context)")
+        println("[BedrockClient] Prefill - Full project map: $project")
         
         return when (architectureType) {
             "INTELLIJ_PLUGIN" -> """# Stage 1: Build Plugin
@@ -770,6 +799,340 @@ For Jenkins: Start with: pipeline {
         val secretsPrefix: String,
         val buildToolCache: String
     )
+    
+    /**
+     * Detects required services from MCP context (database, cache, messaging).
+     */
+    private fun detectServices(mcpContext: String): List<String> {
+        val services = mutableListOf("app")
+        
+        try {
+            val contextMap = parseContext(mcpContext)
+            val project = contextMap["project"] as? Map<*, *>
+            val deps = project?.get("dependencies") as? List<*> ?: emptyList<Any>()
+            
+            // Debug: Print dependencies
+            println("[BedrockClient] Detected ${deps.size} dependencies:")
+            deps.take(10).forEach { println("  - $it") }
+            if (deps.size > 10) println("  ... and ${deps.size - 10} more")
+            
+            // Database service - try both camelCase and snake_case
+            val dbType = (project?.get("databaseType") ?: project?.get("database_type")) as? String
+            println("[BedrockClient] Database type from MCP: $dbType")
+            if (dbType != null && dbType != "null") {
+                services.add(dbType.lowercase())
+            }
+            
+            // Redis if spring-boot-starter-data-redis present
+            val hasRedis = deps.any { it.toString().contains("spring-boot-starter-data-redis") || 
+                           it.toString().contains("spring-data-redis") }
+            println("[BedrockClient] Redis dependency found: $hasRedis")
+            if (hasRedis) {
+                services.add("redis")
+            }
+            
+            // Kafka if spring-kafka present
+            val hasKafka = deps.any { it.toString().contains("spring-kafka") }
+            println("[BedrockClient] Kafka dependency found: $hasKafka")
+            if (hasKafka) {
+                services.add("kafka")
+                services.add("zookeeper")
+            }
+            
+            // MongoDB if present
+            val hasMongo = deps.any { it.toString().contains("spring-boot-starter-data-mongodb") ||
+                           it.toString().contains("mongodb-driver") }
+            println("[BedrockClient] MongoDB dependency found: $hasMongo")
+            if (hasMongo) {
+                if (!services.contains("mongodb")) {
+                    services.add("mongodb")
+                }
+            }
+            
+            println("[BedrockClient] Final detected services: $services")
+            
+        } catch (e: Exception) {
+            println("[BedrockClient] Warning: Could not detect services: ${e.message}")
+        }
+        
+        return services
+    }
+    
+    /**
+     * Builds Docker Compose prompt with multi-service orchestration.
+     * Architecture-aware: handles both Spring Boot and IntelliJ Plugin projects.
+     */
+    private fun buildDockerComposePrompt(mcpContext: String, services: List<String>): String {
+        val architectureType = extractArchitectureType(mcpContext)
+        
+        return when (architectureType) {
+            "INTELLIJ_PLUGIN" -> buildIntellijPluginComposePrompt(mcpContext)
+            else -> buildSpringBootComposePrompt(mcpContext, services)
+        }
+    }
+    
+    /**
+     * Builds Spring Boot-specific Docker Compose prompt with multi-service orchestration.
+     */
+    private fun buildSpringBootComposePrompt(mcpContext: String, services: List<String>): String {
+        val projectName = extractProjectName(mcpContext)
+        val port = extractPort(mcpContext)
+        val envVars = buildEnvironmentVars(mcpContext, services)
+        val databaseName = extractDatabaseName(mcpContext, projectName)
+
+        return """
+<role>You are a Docker Compose expert specializing in Spring Boot multi-service orchestration.</role>
+
+<task>Generate a production-ready docker-compose.yml (version '3.8') for local development with service orchestration, health checks, and volume management.</task>
+
+<mcp_context>
+$mcpContext
+</mcp_context>
+
+<detected_services>
+Services needed: ${services.joinToString(", ")}
+</detected_services>
+
+<instructions>
+1. **App Service** (Spring Boot):
+   - build: context: . / dockerfile: Dockerfile
+   - container_name: $projectName
+   - ports: ["$port:$port"]
+   - environment:
+$envVars
+   - depends_on: ${services.filter { it !in listOf("app", "zookeeper") }.joinToString(", ") { "$it" }} (with service_healthy condition)
+   - volumes: ["./logs:/app/logs"]
+   - networks: [app-network]
+   - restart: unless-stopped
+
+2. **Database Services**:
+   ${if (services.contains("mysql")) "- MySQL 8.0 with MYSQL_DATABASE: $databaseName, health check, named volume mysql_data, MYSQL_ROOT_PASSWORD: root" else ""}
+   ${if (services.contains("postgresql")) "- PostgreSQL with POSTGRES_DB: $databaseName, health check, named volume postgres_data" else ""}
+   ${if (services.contains("mongodb")) "- MongoDB with health check, named volume mongo_data" else ""}
+
+3. **Cache Service**:
+   ${if (services.contains("redis")) "- Redis 7-alpine with health check" else ""}
+
+4. **Messaging Services**:
+   ${if (services.contains("kafka")) "- Zookeeper and Kafka with proper configuration" else ""}
+
+5. **Networks**: app-network with bridge driver
+
+6. **Volumes**: Named volumes for all databases (mysql_data, postgres_data, mongo_data)
+
+</instructions>
+
+<output_format>
+Generate ONLY the docker-compose.yml content.
+Do NOT include markdown code blocks or explanatory text.
+Start with: version: '3.8'
+</output_format>
+
+<quality_checklist>
+✓ All services have health checks
+✓ Dependencies use service_healthy condition
+✓ Named volumes for data persistence
+✓ Environment variables for all connections
+✓ Restart policy configured
+✓ Network isolation
+</quality_checklist>
+""".trimIndent()
+    }
+    
+    /**
+     * Builds IntelliJ Plugin-specific Docker Compose prompt.
+     * For plugins, compose file is just for building the plugin distribution.
+     */
+    private fun buildIntellijPluginComposePrompt(mcpContext: String): String {
+        val projectName = extractProjectName(mcpContext)
+
+        return """
+<role>You are a Docker Compose expert for IntelliJ IDEA plugin build automation.</role>
+
+<task>Generate a minimal docker-compose.yml for building an IntelliJ Plugin distribution (NOT for running it).</task>
+
+<mcp_context>
+$mcpContext
+</mcp_context>
+
+<instructions>
+1. **Purpose**: IntelliJ Plugins CANNOT run as standalone apps. This compose file is ONLY for building the plugin .zip distribution.
+
+2. **Understanding the Dockerfile**:
+   - The Dockerfile creates the plugin .zip in /build/build/distributions/ during build
+   - The final stage copies the .zip to /plugin directory inside the container
+   - We need to EXTRACT this .zip from the container to the host machine
+
+3. **Builder Service Configuration**:
+   - service name: plugin-builder
+   - build:
+     * context: .
+     * dockerfile: Dockerfile
+   - container_name: $projectName-builder
+   - volumes:
+     * Mount host directory to receive the built .zip: "./build/distributions:/output"
+     * This allows copying FROM container TO host
+   - command: Override to copy plugin artifact to host-mounted volume
+     * Use: sh -c "cp -v /plugin/*.zip /output/ && echo '✓ Plugin built successfully!' && ls -lah /output/"
+     * This copies the .zip from container's /plugin to the mounted /output (which is host's ./build/distributions)
+   - networks: [build-network]
+   - NO ports (plugins don't expose ports)
+   - NO health checks (not a running service)
+   - NO restart policy (one-time build)
+   - NO depends_on (single service)
+
+4. **Networks**:
+   - build-network with bridge driver
+
+5. **NO Named Volumes Needed**:
+   - We use a bind mount (./build/distributions:/output) to extract the artifact
+   - Named volumes are not needed for this simple build-only setup
+
+6. **Comments**:
+   - Add header comment: "# Docker Compose for building IntelliJ Plugin"
+   - Add note: "# This is for BUILD ONLY - IntelliJ Plugins cannot run as standalone applications"
+   - Add usage note: "# To use the plugin, install the .zip from build/distributions/ into IntelliJ IDEA"
+
+7. **What NOT to include**:
+   - NO Spring Boot configurations
+   - NO database services
+   - NO health check endpoints
+   - NO port mappings (8080, etc.)
+   - NO SPRING_PROFILES_ACTIVE environment variables
+   - NO restart: unless-stopped
+   - NO depends_on conditions
+   - NO named volumes (use bind mount instead)
+   - NO read-only volume flags (:ro) on output directory
+
+</instructions>
+
+<output_format>
+Generate docker-compose.yml for IntelliJ Plugin BUILD environment.
+
+CRITICAL REQUIREMENTS:
+1. Volume mapping must be: ./build/distributions:/output (NOT :ro flag)
+2. Command must copy files: sh -c "cp -v /plugin/*.zip /output/ && echo '✓ Plugin built successfully!' && ls -lah /output/"
+3. Use version: '3.8'
+4. Single service: plugin-builder
+
+Do NOT include:
+- Markdown code blocks (```yaml)
+- Explanatory text outside YAML
+- Named volumes section
+- Spring Boot service configurations
+
+Start with: # Docker Compose for building IntelliJ Plugin
+</output_format>
+
+<quality_checklist>
+✓ Single builder service only
+✓ No runtime configurations
+✓ No Spring Boot settings
+✓ Bind mount for extracting .zip (./build/distributions:/output)
+✓ Command copies artifact from /plugin to /output
+✓ Clear comments about build-only purpose
+✓ No :ro flag on output volume
+✓ No named volumes
+</quality_checklist>
+""".trimIndent()
+    }
+    
+    private fun extractProjectName(mcpContext: String): String {
+        return try {
+            val contextMap = parseContext(mcpContext)
+            val project = contextMap["project"] as? Map<*, *>
+            (project?.get("name") as? String)?.replace(" ", "-")?.lowercase() ?: "spring-app"
+        } catch (e: Exception) {
+            "spring-app"
+        }
+    }
+    
+    private fun extractPort(mcpContext: String): String {
+        return try {
+            val contextMap = parseContext(mcpContext)
+            val config = contextMap["configuration"] as? Map<*, *>
+            // Try both camelCase and snake_case (Jackson serializes as camelCase by default)
+            val port = (config?.get("serverPort") ?: config?.get("server_port")) as? String ?: "8080"
+            println("[BedrockClient] Extracted port from MCP: $port")
+            port
+        } catch (e: Exception) {
+            "8080"
+        }
+    }
+
+    private fun extractDatabaseName(mcpContext: String, projectName: String): String {
+        return try {
+            val contextMap = parseContext(mcpContext)
+            val config = contextMap["configuration"] as? Map<*, *>
+
+            // Debug: Print the entire configuration map
+            println("[BedrockClient] Configuration map keys: ${config?.keys}")
+            println("[BedrockClient] Configuration map: $config")
+
+            // Try both camelCase and snake_case
+            val datasourceUrl = (config?.get("datasourceUrl") ?: config?.get("datasource_url")) as? String
+            println("[BedrockClient] Datasource URL found: $datasourceUrl")
+
+            if (datasourceUrl != null && datasourceUrl.isNotBlank()) {
+                // Extract database name from JDBC URL (e.g., jdbc:mysql://localhost:3306/businessproject)
+                val dbName = datasourceUrl.substringAfterLast("/").substringBefore("?")
+                println("[BedrockClient] Extracted database name from datasource URL: '$dbName'")
+                return dbName
+            }
+
+            println("[BedrockClient] No datasource URL found, using project name as database name: $projectName")
+            projectName
+        } catch (e: Exception) {
+            println("[BedrockClient] Error extracting database name: ${e.message}, using project name: $projectName")
+            projectName
+        }
+    }
+    
+    private fun buildEnvironmentVars(mcpContext: String, services: List<String>): String {
+        val vars = mutableListOf<String>()
+
+        try {
+            val contextMap = parseContext(mcpContext)
+            val project = contextMap["project"] as? Map<*, *>
+            val projectName = (project?.get("name") as? String)?.replace(" ", "-")?.lowercase() ?: "app"
+
+            // Extract actual database name from datasource URL in application.properties
+            val databaseName = extractDatabaseName(mcpContext, projectName)
+
+            // Database connection
+            when {
+                services.contains("mysql") -> {
+                    vars.add("       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/$databaseName")
+                    vars.add("       SPRING_DATASOURCE_USERNAME: root")
+                    vars.add("       SPRING_DATASOURCE_PASSWORD: root")
+                }
+                services.contains("postgresql") -> {
+                    vars.add("       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/$databaseName")
+                    vars.add("       SPRING_DATASOURCE_USERNAME: postgres")
+                    vars.add("       SPRING_DATASOURCE_PASSWORD: postgres")
+                }
+                services.contains("mongodb") -> {
+                    vars.add("       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/$databaseName")
+                }
+            }
+            
+            // Redis connection
+            if (services.contains("redis")) {
+                vars.add("       SPRING_REDIS_HOST: redis")
+                vars.add("       SPRING_REDIS_PORT: 6379")
+            }
+            
+            // Kafka connection
+            if (services.contains("kafka")) {
+                vars.add("       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092")
+            }
+            
+        } catch (e: Exception) {
+            println("[BedrockClient] Warning: Could not build environment vars: ${e.message}")
+        }
+        
+        return if (vars.isEmpty()) "       # No external services detected" else vars.joinToString("\n")
+    }
     
     /**
      * Closes the Bedrock client and releases resources.

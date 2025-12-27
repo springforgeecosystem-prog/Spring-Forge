@@ -103,7 +103,7 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
                     when (choice) {
                         0 -> generateDockerfile(mcpContext, project, indicator)
                         1 -> generateGitHubActions(claudeService, projectInfoStr, project, indicator)
-                        2 -> generateDockerCompose(claudeService, projectInfoStr, project, indicator)
+                        2 -> generateDockerComposeWithMCP(mcpContext, project, indicator)
                         3 -> generateKubernetesManifests(claudeService, projectInfoStr, project, indicator)
                         4 -> generateAllFiles(mcpContext, claudeService, projectInfoStr, project, indicator)
                     }
@@ -194,6 +194,29 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
         indicator.text = "docker-compose.yml generated!"
         indicator.fraction = 0.9
     }
+    
+    private fun generateDockerComposeWithMCP(
+        mcpContext: MCPContext,
+        project: com.intellij.openapi.project.Project,
+        indicator: ProgressIndicator
+    ) {
+        indicator.text = "Generating docker-compose.yml with MCP context..."
+        indicator.fraction = 0.5
+        
+        val bedrockClient = BedrockClient()
+        val mcpContextJson = com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(mcpContext)
+        
+        indicator.text = "Detecting services (database, cache, messaging)..."
+        indicator.fraction = 0.6
+        
+        val compose = bedrockClient.generateDockerCompose(mcpContextJson)
+        bedrockClient.close()
+        
+        saveToFile(project, "docker-compose.yml", compose)
+        
+        indicator.text = "docker-compose.yml generated!"
+        indicator.fraction = 0.9
+    }
 
     private fun generateKubernetesManifests(
         claudeService: ClaudeService,
@@ -243,9 +266,11 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
         workflowDir.mkdirs()
         File(workflowDir, "ci-cd.yml").writeText(workflow)
 
-        indicator.text = "Generating docker-compose.yml..."
+        indicator.text = "Generating docker-compose.yml with MCP context..."
         indicator.fraction = 0.6
-        val compose = claudeService.generateDockerCompose(projectInfo)
+        val bedrockClient2 = BedrockClient()
+        val compose = bedrockClient2.generateDockerCompose(mcpContextJson)
+        bedrockClient2.close()
         saveToFile(project, "docker-compose.yml", compose)
 
         indicator.text = "Generating .gitignore..."
