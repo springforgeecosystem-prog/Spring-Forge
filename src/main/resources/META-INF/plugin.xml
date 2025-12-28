@@ -45,6 +45,12 @@
                         class="org.springforge.codegeneration.actions.ExistingProjectAction"
                         text="Existing Project (Detect Architecture)"
                         description="Analyze existing project detect architecture using ML"/>
+
+                <action id="SpringForge.CodeGen.GeneratePrompt"
+                        class="org.springforge.codegeneration.actions.GeneratePromptAction"
+                        text="Generate Prompt for Code Generation"
+                        description="Parse input.yml + analyze project + build LLM prompt"/>
+
             </group>
 
             <!-- ==============================
