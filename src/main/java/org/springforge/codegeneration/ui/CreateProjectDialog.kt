@@ -8,78 +8,93 @@ import org.springforge.codegeneration.service.ArchitectureTemplate
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import javax.swing.JCheckBox
+import java.awt.Insets
+import javax.swing.BorderFactory
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 
 class CreateProjectDialog : DialogWrapper(true) {
 
+    // Fields
     private val projectNameField = JBTextField("demo")
     private val packageRootField = JBTextField("com.example.demo")
+
+    // Dropdowns
     private val archCombo = ComboBox(arrayOf("Layered", "MVC", "Clean"))
-    private val addJpa = JCheckBox("Add JPA", true)
-    private val addLombok = JCheckBox("Add Lombok", true)
-    private val addWeb = JCheckBox("Add Web", true)
+    private val javaVersionCombo = ComboBox(arrayOf("17", "21"))
+    private val buildToolCombo = ComboBox(arrayOf("Maven", "Gradle - Groovy", "Gradle - Kotlin"))
+
+    // REMOVED: private val bootVersionCombo...
+
+    // Dependency Selector
+    private val depSelector = DependencySelector()
 
     init {
-        title = "Create New Spring Boot Project (SpringForge)"
+        title = "Create New Spring Boot Project"
         init()
     }
 
     override fun createCenterPanel(): JComponent {
-        val panel = JPanel(BorderLayout())
-        val form = JPanel(GridBagLayout())
+        val mainPanel = JPanel(BorderLayout())
+
+        val formPanel = JPanel(GridBagLayout())
         val c = GridBagConstraints()
         c.fill = GridBagConstraints.HORIZONTAL
-        c.gridx = 0
-        c.gridy = 0
-        c.weightx = 0.2
-        form.add(JLabel("Project Artifact Id:"), c)
-        c.gridx = 1
-        c.weightx = 0.8
-        form.add(projectNameField, c)
+        c.insets = Insets(5, 5, 5, 5)
+        c.weightx = 0.3
+        c.gridx = 0; c.gridy = 0
 
-        c.gridx = 0
-        c.gridy = 1
-        c.weightx = 0.2
-        form.add(JLabel("Package Root:"), c)
-        c.gridx = 1
-        c.weightx = 0.8
-        form.add(packageRootField, c)
+        // Row 1: Name & Package
+        formPanel.add(JLabel("Name:"), c); c.gridx = 1; c.weightx = 0.7
+        formPanel.add(projectNameField, c)
 
-        c.gridx = 0
-        c.gridy = 2
-        c.weightx = 0.2
-        form.add(JLabel("Architecture:"), c)
-        c.gridx = 1
-        c.weightx = 0.8
-        form.add(archCombo, c)
+        c.gridx = 0; c.gridy = 1; c.weightx = 0.3
+        formPanel.add(JLabel("Package:"), c); c.gridx = 1; c.weightx = 0.7
+        formPanel.add(packageRootField, c)
 
-        c.gridx = 0
-        c.gridy = 3
-        c.weightx = 0.2
-        form.add(JLabel("Dependencies:"), c)
-        c.gridx = 1
-        val depsPanel = JPanel()
-        depsPanel.add(addWeb)
-        depsPanel.add(addJpa)
-        depsPanel.add(addLombok)
-        form.add(depsPanel, c)
+        // Row 2: Architecture & Build Tool
+        c.gridx = 0; c.gridy = 2; c.weightx = 0.3
+        formPanel.add(JLabel("Architecture:"), c); c.gridx = 1; c.weightx = 0.7
+        formPanel.add(archCombo, c)
 
-        panel.add(form, BorderLayout.NORTH)
-        return panel
+        c.gridx = 0; c.gridy = 3; c.weightx = 0.3
+        formPanel.add(JLabel("Build Tool:"), c); c.gridx = 1; c.weightx = 0.7
+        formPanel.add(buildToolCombo, c)
+
+        // Row 3: Java Version (Boot version removed)
+        c.gridx = 0; c.gridy = 4; c.weightx = 0.3
+        formPanel.add(JLabel("Java Version:"), c); c.gridx = 1; c.weightx = 0.7
+        formPanel.add(javaVersionCombo, c)
+
+        depSelector.border = BorderFactory.createTitledBorder("Dependencies")
+
+        mainPanel.add(formPanel, BorderLayout.NORTH)
+        mainPanel.add(depSelector, BorderLayout.CENTER)
+
+        return mainPanel
     }
 
     override fun doValidate(): ValidationInfo? {
-        val pkg = packageRootField.text.trim()
-        if (pkg.isEmpty()) return ValidationInfo("Package root is required", packageRootField)
-        if (projectNameField.text.trim().isEmpty()) return ValidationInfo("Project name is required", projectNameField)
+        if (projectNameField.text.isBlank()) return ValidationInfo("Project name is required", projectNameField)
+        if (packageRootField.text.isBlank()) return ValidationInfo("Package is required", packageRootField)
         return null
     }
 
-    fun getArtifactId(): String = projectNameField.text.trim()
-    fun getPackageRoot(): String = packageRootField.text.trim()
+    fun getArtifactId() = projectNameField.text.trim()
+    fun getPackageRoot() = packageRootField.text.trim()
+    fun getJavaVersion() = javaVersionCombo.selectedItem.toString()
+
+    // REMOVED: fun getBootVersion()
+
+    fun getBuildTool(): String {
+        return when (buildToolCombo.selectedItem.toString()) {
+            "Gradle - Groovy" -> "gradle-project"
+            "Gradle - Kotlin" -> "gradle-project-kotlin"
+            else -> "maven-project"
+        }
+    }
+
     fun getArchitecture(): ArchitectureTemplate =
         when (archCombo.selectedItem?.toString()?.lowercase()) {
             "mvc" -> ArchitectureTemplate.MVC
@@ -87,11 +102,5 @@ class CreateProjectDialog : DialogWrapper(true) {
             else -> ArchitectureTemplate.LAYERED
         }
 
-    fun getDependencies(): List<String> {
-        val deps = mutableListOf<String>()
-        if (addWeb.isSelected) deps.add("web")
-        if (addJpa.isSelected) deps.add("data-jpa")
-        if (addLombok.isSelected) deps.add("lombok")
-        return deps
-    }
+    fun getDependencies(): List<String> = depSelector.getSelectedDependencies()
 }
