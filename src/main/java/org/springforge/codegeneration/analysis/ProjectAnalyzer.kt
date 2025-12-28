@@ -10,29 +10,23 @@ class ProjectAnalyzer(private val project: Project) {
         val srcMainJava = File(projectPath, "src/main/java")
         if (!srcMainJava.exists()) return ProjectAnalysisResult.empty()
 
-        // 1. Find Spring Boot application class
         val applicationFile = srcMainJava.walkTopDown()
-            .firstOrNull { file ->
-                file.isFile &&
-                        file.name.endsWith(".java") &&
-                        file.readText().contains("@SpringBootApplication")
+            .firstOrNull {
+                it.isFile &&
+                        it.name.endsWith(".java") &&
+                        it.readText().contains("@SpringBootApplication")
             } ?: return ProjectAnalysisResult.empty()
 
-        // 2. Base package directory = parent of Application class
         val basePackageDir = applicationFile.parentFile
-
         val basePackage = basePackageDir
             .relativeTo(srcMainJava)
-            .path
-            .replace(File.separator, ".")
+            .path.replace(File.separator, ".")
 
-        // 3. Detect layers from subdirectories
         val layers = basePackageDir.listFiles()
             ?.filter { it.isDirectory }
             ?.map { it.name.lowercase() }
             ?: emptyList()
 
-        // 4. Detect naming conventions
         val namingConventions = mutableMapOf<String, String>()
 
         basePackageDir.walkTopDown()
@@ -41,17 +35,17 @@ class ProjectAnalyzer(private val project: Project) {
                 when {
                     file.name.endsWith("Controller.java") ->
                         namingConventions["controller"] = "Controller suffix"
-
                     file.name.endsWith("ServiceImpl.java") ->
                         namingConventions["service"] = "Impl suffix"
-
                     file.name.endsWith("DaoImpl.java") ->
                         namingConventions["dao"] = "Impl suffix"
                 }
             }
 
+        // ⚠️ DO NOT decide architecture here
         return ProjectAnalysisResult(
-            detectedArchitecture = "layered",
+            detectedArchitecture = "unknown",
+            confidence = 0.0,
             basePackage = basePackage,
             layers = layers,
             namingConventions = namingConventions
