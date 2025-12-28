@@ -24,14 +24,18 @@ class SpringInitializrClient(
     fun downloadStarterZip(params: String, targetFile: File): File {
         val url = "$baseUrl/starter.zip?$params"
         val req = Request.Builder().url(url).get().build()
+
         client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) {
-                throw RuntimeException("Spring Initializr failed: ${resp.code} ${resp.message}")
+                // READ THE ERROR BODY TO SEE WHY IT FAILED
+                val errorBody = resp.body?.string() ?: "No details provided"
+                throw RuntimeException("Spring Initializr failed: ${resp.code}. Details: $errorBody")
             }
+
             resp.body?.byteStream()?.use { input ->
                 targetFile.parentFile?.mkdirs()
                 val sink = targetFile.sink().buffer()
-                sink.writeAll(input.source())   // works now!
+                sink.writeAll(input.source())
                 sink.close()
             } ?: throw RuntimeException("No body in response")
         }

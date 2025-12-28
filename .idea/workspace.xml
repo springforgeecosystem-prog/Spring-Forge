@@ -4,12 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="fix: registered new prompt generation action">
+    <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="fix: Ehnhanced project analyser for prompt generation">
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/DependencySelector.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalysisResult.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalysisResult.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalyzer.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalyzer.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectContextBuilder.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectContextBuilder.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/PromptBuilder.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/PromptBuilder.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/SpringInitializrClient.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/SpringInitializrClient.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/CreateProjectDialog.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/CreateProjectDialog.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -115,7 +118,7 @@
     &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/Prompt-Generator&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/DependencyInjector&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/SpringForge/spring_architectures/clean/2hwan_hood_backend&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
@@ -268,6 +271,7 @@
       <workItem from="1764823611835" duration="3230000" />
       <workItem from="1766293404097" duration="3508000" />
       <workItem from="1766299438791" duration="3778000" />
+      <workItem from="1766918837792" duration="1968000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
