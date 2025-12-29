@@ -39,3 +39,4 @@ object MLServiceClient {
         return JsonUtil.fromJson(text, PredictionResult::class.java)
     }
 }
+
