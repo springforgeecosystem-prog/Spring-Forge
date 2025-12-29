@@ -12,6 +12,10 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="SpringForge" displayType="BALLOON" isLogByDefault="true"/>
+        <toolWindow
+                id="SpringForgeQuality"
+                anchor="right"
+                factoryClass="org.springforge.qualityassurance.toolwindow.QualityToolWindowFactory"/>
     </extensions>
 
     <actions>
@@ -34,12 +38,12 @@
                    popup="true">
 
 
-                    <!-- existing actions -->
-                    <action id="org.SpringForge.actions.CreateNewProjectAction"
-                            class="org.springforge.codegeneration.actions.CreateNewProjectAction"
-                            text="SpringForge: Create New Spring Boot Project"
-                            description="Create and initialize a new Spring Boot project with architecture template"/>
-                    <!-- other actions -->
+                <!-- existing actions -->
+                <action id="org.SpringForge.actions.CreateNewProjectAction"
+                        class="org.springforge.codegeneration.actions.CreateNewProjectAction"
+                        text="SpringForge: Create New Spring Boot Project"
+                        description="Create and initialize a new Spring Boot project with architecture template"/>
+                <!-- other actions -->
 
                 <action id="SpringForge.CodeGen.ExistingProject"
                         class="org.springforge.codegeneration.actions.ExistingProjectAction"
@@ -56,10 +60,10 @@
             <!-- ==============================
                  Smart Refactor
                ============================== -->
-            <action id="SpringForge.Refactor.Action"
-                    class="org.springforge.qualityassurance.actions.SmartRefactorAction"
-                    text="Smart Refactor"
-                    description="Refactor Spring Boot files"/>
+            <action
+                    id="SpringForge.AnalyzeQuality"
+                    class="org.springforge.qualityassurance.actions.AnalyzeQualityAction"
+                    text="Analyze Code Quality"/>
 
             <!-- ==============================
                  Runtime Debugger
@@ -79,5 +83,7 @@
 
         </group>
 
+
     </actions>
+
 </idea-plugin>
