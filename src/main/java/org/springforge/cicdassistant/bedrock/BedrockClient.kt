@@ -124,14 +124,37 @@ class BedrockClient {
      */
     fun generateDockerCompose(mcpContext: String): String {
         println("[BedrockClient] Generating Docker Compose configuration")
-        
+
         val services = detectServices(mcpContext)
         println("[BedrockClient] Detected services: ${services.joinToString(", ")}")
-        
+
         val prompt = buildDockerComposePrompt(mcpContext, services)
         return invokeModel(prompt)
     }
-    
+
+    /**
+     * Generates GitHub Actions workflow YAML for Spring Boot projects.
+     *
+     * @param mcpContext MCP context JSON string
+     * @return GitHub Actions workflow YAML content
+     */
+    fun generateGitHubActionsWorkflow(mcpContext: String): String {
+        println("[BedrockClient] Generating GitHub Actions workflow")
+
+        val prompt = buildGitHubActionsPrompt(mcpContext)
+        val workflow = invokeModel(prompt)
+
+        // Clean up any markdown blocks Claude might add
+        val cleaned = workflow
+            .removePrefix("```yaml")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+
+        println("[BedrockClient] GitHub Actions workflow generated successfully")
+        return cleaned
+    }
+
     /**
      * Extracts architecture type from MCP context JSON.
      * Checks metadata.architecture_type (correct location in MCP format).
@@ -1036,7 +1059,310 @@ Start with: # Docker Compose for building IntelliJ Plugin
 </quality_checklist>
 """.trimIndent()
     }
-    
+
+    /**
+     * Builds prompt for GitHub Actions workflow generation.
+     * Architecture-aware: handles both Spring Boot and IntelliJ Plugin projects.
+     */
+    private fun buildGitHubActionsPrompt(mcpContext: String): String {
+        val architectureType = extractArchitectureType(mcpContext)
+
+        return when (architectureType) {
+            "INTELLIJ_PLUGIN" -> buildIntellijPluginGitHubActionsPrompt(mcpContext)
+            else -> buildSpringBootGitHubActionsPrompt(mcpContext)
+        }
+    }
+
+    /**
+     * Builds Spring Boot-specific GitHub Actions workflow prompt.
+     */
+    private fun buildSpringBootGitHubActionsPrompt(mcpContext: String): String {
+        val contextMap = parseContext(mcpContext)
+        val project = contextMap["project"] as? Map<*, *>
+        val buildTool = project?.get("buildTool") as? String ?: "gradle"
+        println("[BedrockClient] Extracted build tool from MCP: $buildTool")
+        val javaVersion = project?.get("javaVersion") as? String ?: "17"
+        val projectName = project?.get("name") as? String ?: "spring-boot-app"
+        val databaseType = (project?.get("databaseType") ?: project?.get("database_type")) as? String
+        val hasDatabase = databaseType != null && databaseType != "null"
+        println("[BedrockClient] Database type from MCP: $databaseType, hasDatabase: $hasDatabase")
+        val defaultBranch = extractDefaultBranch(mcpContext)
+
+        return """
+You are a DevOps expert specializing in GitHub Actions CI/CD pipelines for Spring Boot applications.
+
+<task>
+Generate a production-ready GitHub Actions workflow YAML file for a Spring Boot project.
+</task>
+
+<CRITICAL_PROJECT_INFO>
+🔴 BUILD TOOL: ${buildTool.uppercase()}
+🔴 This project uses ${buildTool.uppercase()}, NOT ${if (buildTool.equals("Maven", ignoreCase = true)) "Gradle" else "Maven"}!
+🔴 You MUST use ${if (buildTool.equals("Maven", ignoreCase = true)) "./mvnw (Maven wrapper)" else "./gradlew (Gradle wrapper)"} commands!
+</CRITICAL_PROJECT_INFO>
+
+<mcp_context>
+$mcpContext
+</mcp_context>
+
+<requirements>
+1. **Workflow Name**: CI/CD Pipeline
+2. **Triggers**:
+   - Pull requests to $defaultBranch branch (validates PRs before merge)
+   - Manual workflow_dispatch (allows manual trigger on any branch)
+   - DO NOT trigger on direct push to $defaultBranch (prevents auto-execution on merge)
+3. **Jobs**:
+   a. BUILD JOB:
+      ${if (hasDatabase)
+         """- ⚠️ CRITICAL: Add database service container for tests!
+      - Database service: ${databaseType?.lowercase() ?: "mysql"}
+      - Service configuration:
+        * Image: ${when (databaseType?.lowercase()) {
+            "mysql" -> "mysql:8.0"
+            "postgresql", "postgres" -> "postgres:15-alpine"
+            else -> "mysql:8.0"
+        }}
+        * Environment variables:
+          ${when (databaseType?.lowercase()) {
+              "mysql" -> "MYSQL_ROOT_PASSWORD: root, MYSQL_DATABASE: testdb"
+              "postgresql", "postgres" -> "POSTGRES_PASSWORD: postgres, POSTGRES_DB: testdb"
+              else -> "MYSQL_ROOT_PASSWORD: root, MYSQL_DATABASE: testdb"
+          }}
+        * Health check configured with retries
+        * Port: ${when (databaseType?.lowercase()) {
+            "mysql" -> "3306"
+            "postgresql", "postgres" -> "5432"
+            else -> "3306"
+        }}
+      """
+      else ""
+      }
+      - Checkout code
+      - Setup Java $javaVersion (Temurin distribution)${if (buildTool.equals("Maven", ignoreCase = true)) " with Maven" else ""}
+      ${if (buildTool.equals("Maven", ignoreCase = true))
+         "- ⚠️ CRITICAL: Use system Maven command 'mvn' (NOT './mvnw')! The setup-java action installs Maven, so use 'mvn' directly."
+      else
+         "- Make Gradle wrapper executable: chmod +x ./gradlew"
+      }
+      - Cache ${if (buildTool.equals("Maven", ignoreCase = true)) "Maven dependencies (~/.m2)" else "Gradle dependencies (~/.gradle)"}
+      ${if (buildTool.equals("Maven", ignoreCase = true))
+         """- Build command with retry logic (Maven Central can be flaky):
+        Use a retry loop with 3 attempts and 10 second delays
+        Command: mvn clean package -DskipTests -B
+      - Test command with retry logic:
+        Use a retry loop with 3 attempts and 10 second delays
+        Command: mvn test -B
+      - ⚠️ DO NOT use './mvnw' - use 'mvn' instead!
+      - ⚠️ DO NOT add 'Make Maven wrapper executable' step!
+      - ⚠️ CRITICAL: Add retry logic for BOTH build AND test commands to handle transient failures"""
+      else
+         """- Build command: ./gradlew build -x test
+      - Test command: ./gradlew test"""
+      }
+      - Upload artifact from ${if (buildTool.equals("Maven", ignoreCase = true)) "target/*.jar" else "build/libs/*.jar"}
+
+   b. DOCKER JOB (depends on build):
+      - Download build artifact
+      - Setup Docker Buildx
+      - Login to GitHub Container Registry (ghcr.io)
+      - Build and push Docker image
+      - ⚠️ CRITICAL: Use metadata-action for tags with SAFE tag formats:
+        * type=ref,event=pr (for pull requests, generates "pr-NUMBER")
+        * type=sha (for commit SHA, generates short SHA without prefix)
+        * DO NOT use type=sha with prefix={{branch}}- as it can create invalid tags
+        * For latest tag: type=raw,value=latest,enable=${'$'}{{is_default_branch}}
+      - Enable layer caching with type=gha
+
+   c. SECURITY JOB (depends on docker):
+      - Run Trivy vulnerability scanner on Docker image
+        ⚠️ CRITICAL: Image reference must match the EXACT tags that were pushed
+        The metadata-action generates these tags:
+          type=ref,event=pr → "pr-9" (for PR #9)
+          type=sha → "sha-b68600d" (short SHA with sha- prefix)
+        For pull_request: ${'$'}{{env.REGISTRY}}/${'$'}{{env.IMAGE_NAME}}:pr-${'$'}{{github.event.pull_request.number}}
+        For workflow_dispatch: ${'$'}{{env.REGISTRY}}/${'$'}{{env.IMAGE_NAME}}:sha-${'$'}{{github.sha}}
+        Use conditional: ${'$'}{{ github.event_name == 'pull_request' && format('{{0}}/{{1}}:pr-{{2}}', env.REGISTRY, env.IMAGE_NAME, github.event.pull_request.number) || format('{{0}}/{{1}}:sha-{{2}}', env.REGISTRY, env.IMAGE_NAME, github.sha) }}
+      - Upload Trivy results to GitHub Security (SARIF format)
+      - Run Hadolint on Dockerfile
+      - Upload Hadolint results to GitHub Security (SARIF format)
+</requirements>
+
+<instructions>
+1. Use latest stable actions: checkout@v4, setup-java@v4, upload-artifact@v4
+2. Enable dependency caching for faster builds
+3. Use GITHUB_TOKEN secret (built-in, no configuration needed)
+4. Set proper permissions for packages (write access)
+5. Include proper job dependencies (build → docker → security)
+6. Add environment variables:
+   - JAVA_VERSION: '$javaVersion'
+   - SPRING_BOOT_VERSION: (Spring Boot version from MCP)
+   - REGISTRY: ghcr.io
+   - IMAGE_NAME: ⚠️ CRITICAL - MUST be lowercase for ghcr.io!
+     Use: ${'$'}{{ github.repository }} | tr '[:upper:]' '[:lower:]'
+     OR: echo "${'$'}{{ github.repository }}" | awk '{{print tolower(${'$'}0)}}'
+     GitHub Container Registry REJECTS uppercase image names!
+7. Use ubuntu-latest runners
+8. Include comments explaining each step
+9. ${if (buildTool.equals("Maven", ignoreCase = true)) "CRITICAL: You MUST use 'mvn' (system Maven) for all Maven commands, NOT './mvnw'. Do NOT add 'chmod +x ./mvnw' step. The setup-java action already provides Maven." else "CRITICAL: You MUST use './gradlew' (Gradle wrapper) for all Gradle commands, NOT 'gradle'. Add 'chmod +x ./gradlew' step BEFORE first Gradle command."}
+10. ${if (buildTool.equals("Maven", ignoreCase = true)) "For Maven: NO wrapper step needed. Use 'mvn' directly." else "For Gradle: The wrapper executable step must come IMMEDIATELY after Java setup and BEFORE caching"}
+11. IMPORTANT: Only trigger on pull_request and workflow_dispatch. Do NOT include 'push:' trigger for $defaultBranch branch.
+</instructions>
+
+<output_format>
+Generate ONLY the YAML content for .github/workflows/build.yml
+Start with:
+name: CI/CD Pipeline
+
+Do NOT include markdown code blocks (```) or explanations.
+</output_format>
+
+<quality_checklist>
+- [ ] Workflow triggers ONLY on pull_request and workflow_dispatch (NO push trigger)
+- [ ] Java version matches project ($javaVersion)
+- [ ] Build commands use ${if (buildTool.equals("Maven", ignoreCase = true)) "mvn (system Maven, NOT ./mvnw)" else "./gradlew (NOT gradle)"}
+- [ ] ${if (buildTool.equals("Maven", ignoreCase = true)) "NO 'chmod +x ./mvnw' step exists (Maven wrapper not used)" else "chmod +x ./gradlew step exists BEFORE first build command"}
+- [ ] Artifact path is ${if (buildTool.equals("Maven", ignoreCase = true)) "target/*.jar" else "build/libs/*.jar"}
+- [ ] Caching uses ${if (buildTool.equals("Maven", ignoreCase = true)) "~/.m2" else "~/.gradle"}
+- [ ] Docker image tags are VALID (no tags starting with hyphen or special characters)
+- [ ] Docker metadata-action uses: type=ref,event=pr AND type=sha (WITHOUT prefix) AND type=raw for latest
+- [ ] ${if (hasDatabase) "Database service container configured with proper health checks" else "No database service needed"}
+- [ ] Security scanning included
+- [ ] Secrets properly referenced
+- [ ] Job dependencies correct (build → docker → security)
+</quality_checklist>
+""".trimIndent()
+    }
+
+    /**
+     * Builds IntelliJ Plugin-specific GitHub Actions workflow prompt.
+     * Focuses on plugin building and distribution (not JAR files).
+     */
+    private fun buildIntellijPluginGitHubActionsPrompt(mcpContext: String): String {
+        val contextMap = parseContext(mcpContext)
+        val project = contextMap["project"] as? Map<*, *>
+        val buildTool = project?.get("buildTool") as? String ?: "gradle"
+        val javaVersion = project?.get("javaVersion") as? String ?: "17"
+        val projectName = project?.get("name") as? String ?: "intellij-plugin"
+        val defaultBranch = extractDefaultBranch(mcpContext)
+
+        return """
+You are a DevOps expert specializing in GitHub Actions CI/CD pipelines for IntelliJ IDEA plugin projects.
+
+<task>
+Generate a production-ready GitHub Actions workflow YAML file for an IntelliJ IDEA plugin project.
+</task>
+
+<mcp_context>
+$mcpContext
+</mcp_context>
+
+<critical_understanding>
+This is an IntelliJ IDEA Plugin project, NOT a Spring Boot application.
+Key differences:
+- Build command: ./gradlew buildPlugin (NOT ./gradlew build)
+- Artifact: build/distributions/*.zip (NOT build/libs/*.jar)
+- No Spring Boot environment variables (no SPRING_BOOT_VERSION)
+- Artifact name should reflect plugin nature (e.g., "intellij-plugin", NOT "spring-boot-jar")
+</critical_understanding>
+
+<requirements>
+1. **Workflow Name**: CI/CD Pipeline
+
+2. **Triggers**:
+   - Pull requests to $defaultBranch branch (validates PRs before merge)
+   - Manual workflow_dispatch (allows manual trigger on any branch)
+   - DO NOT trigger on direct push to $defaultBranch (prevents auto-execution on merge)
+
+3. **Environment Variables**:
+   - JAVA_VERSION: '$javaVersion'
+   - REGISTRY: ghcr.io
+   - IMAGE_NAME: ${'$'}{{ github.repository }}
+   - DO NOT include SPRING_BOOT_VERSION (this is NOT a Spring Boot app)
+
+4. **Permissions**:
+   - contents: read
+   - packages: write
+   - security-events: write
+
+5. **Jobs**:
+
+   a. BUILD JOB (Name: "Build and Test IntelliJ Plugin"):
+      - Checkout code
+      - Setup Java $javaVersion (Temurin distribution)
+      - Cache ${if (buildTool == "maven") "Maven" else "Gradle"} dependencies
+      - Make gradlew executable (chmod +x ./gradlew)
+      - Build plugin: ./gradlew buildPlugin --no-daemon
+      - Run tests: ./gradlew test
+      - Upload test results artifact (build/reports/tests/)
+      - Upload plugin artifact (build/distributions/*.zip) with name "intellij-plugin", 30 days retention
+
+   b. DOCKER JOB (Name: "Build and Push Docker Image", depends on build):
+      - Checkout code
+      - Download plugin artifact from build job
+      - Place artifact in build/distributions/ directory
+      - Setup Docker Buildx
+      - Login to GitHub Container Registry (ghcr.io)
+      - Extract metadata for tags (branch, PR, SHA, latest)
+      - Build and push Docker image with multi-platform support (linux/amd64,linux/arm64)
+      - Enable layer caching (type=gha)
+      - Output image reference and digest for security job
+
+   c. SECURITY JOB (Name: "Security Scanning", depends on docker):
+      - Checkout code
+      - Run Hadolint on Dockerfile (format: sarif, no-fail: true)
+      - Upload Hadolint results to GitHub Security
+      - Run Trivy vulnerability scanner on built image (use digest from docker job)
+      - Upload Trivy results to GitHub Security
+      - Upload both SARIF files as artifacts (30 days retention)
+
+</requirements>
+
+<instructions>
+1. Use latest stable actions: checkout@v4, setup-java@v4, upload-artifact@v4, download-artifact@v4
+2. Enable Gradle dependency caching for faster builds
+3. Use GITHUB_TOKEN secret (built-in, no configuration needed)
+4. Set proper permissions for packages (write access)
+5. Include proper job dependencies (build → docker → security)
+6. Add environment variables for Java version and registry (NO Spring Boot version)
+7. Use ubuntu-latest runners
+8. Include comments explaining each step
+9. Docker job must output image reference and digest for security scanning
+10. Artifact names must reflect plugin nature (intellij-plugin, NOT spring-boot-jar)
+11. Build command MUST be ./gradlew buildPlugin --no-daemon
+12. Artifact path MUST be build/distributions/*.zip
+</instructions>
+
+<output_format>
+Generate ONLY the YAML content for .github/workflows/build.yml
+Start with:
+name: CI/CD Pipeline
+
+Do NOT include:
+- Markdown code blocks (```)
+- Explanatory text outside YAML
+- Spring Boot references
+- JAR file artifact paths
+- SPRING_BOOT_VERSION environment variable
+</output_format>
+
+<quality_checklist>
+- [ ] Workflow triggers on push and PR
+- [ ] Java version matches project ($javaVersion)
+- [ ] Build command is ./gradlew buildPlugin --no-daemon (NOT ./gradlew build)
+- [ ] Artifact path is build/distributions/*.zip (NOT build/libs/*.jar)
+- [ ] Artifact name is "intellij-plugin" (NOT "spring-boot-jar")
+- [ ] NO SPRING_BOOT_VERSION environment variable
+- [ ] Caching configured correctly for Gradle
+- [ ] Docker image tagged properly
+- [ ] Security scanning included (Trivy + Hadolint)
+- [ ] Secrets properly referenced
+- [ ] Job dependencies correct (build → docker → security)
+- [ ] Docker job outputs image reference and digest
+- [ ] Security job uses image digest from docker job
+</quality_checklist>
+""".trimIndent()
+    }
+
     private fun extractProjectName(mcpContext: String): String {
         return try {
             val contextMap = parseContext(mcpContext)
@@ -1057,6 +1383,24 @@ Start with: # Docker Compose for building IntelliJ Plugin
             port
         } catch (e: Exception) {
             "8080"
+        }
+    }
+
+    /**
+     * Extracts the default branch name from MCP context (for GitHub repos).
+     * Falls back to "main" if not found.
+     */
+    private fun extractDefaultBranch(mcpContext: String): String {
+        return try {
+            val contextMap = parseContext(mcpContext)
+            val metadata = contextMap["metadata"] as? Map<*, *>
+            val defaultBranch = (metadata?.get("default_branch") ?: metadata?.get("defaultBranch")) as? String
+            val branch = defaultBranch ?: "main"
+            println("[BedrockClient] Extracted default branch from MCP: $branch")
+            branch
+        } catch (e: Exception) {
+            println("[BedrockClient] Failed to extract default branch, using 'main': ${e.message}")
+            "main"
         }
     }
 

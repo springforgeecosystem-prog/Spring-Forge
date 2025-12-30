@@ -102,7 +102,7 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
 
                     when (choice) {
                         0 -> generateDockerfile(mcpContext, project, indicator)
-                        1 -> generateGitHubActions(claudeService, projectInfoStr, project, indicator)
+                        1 -> generateGitHubActionsWorkflow(mcpContext, project, indicator)
                         2 -> generateDockerComposeWithMCP(mcpContext, project, indicator)
                         3 -> generateKubernetesManifests(claudeService, projectInfoStr, project, indicator)
                         4 -> generateAllFiles(mcpContext, claudeService, projectInfoStr, project, indicator)
@@ -157,26 +157,38 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
         indicator.fraction = 0.9
     }
 
-    private fun generateGitHubActions(
-        claudeService: ClaudeService,
-        projectInfo: String,
+    /**
+     * Generates GitHub Actions workflow file using MCP context and BedrockClient.
+     */
+    private fun generateGitHubActionsWorkflow(
+        mcpContext: MCPContext,
         project: com.intellij.openapi.project.Project,
         indicator: ProgressIndicator
     ) {
         indicator.text = "Generating GitHub Actions workflow..."
-        indicator.fraction = 0.5
+        indicator.fraction = 0.3
 
-        val workflow = claudeService.generateGitHubActionsWorkflow(projectInfo)
+        val bedrockClient = BedrockClient()
+        val mcpContextJson = com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(mcpContext)
+        val workflow = bedrockClient.generateGitHubActionsWorkflow(mcpContextJson)
+        bedrockClient.close()
+
+        indicator.text = "Writing .github/workflows/build.yml..."
+        indicator.fraction = 0.7
 
         // Create .github/workflows directory
-        val basePath = project.basePath ?: return
+        val basePath = project.basePath ?: throw IllegalStateException("Project path not found")
         val workflowDir = File(basePath, ".github/workflows")
         workflowDir.mkdirs()
 
-        File(workflowDir, "ci-cd.yml").writeText(workflow)
+        // Write workflow file
+        val workflowFile = File(workflowDir, "build.yml")
+        workflowFile.writeText(workflow)
 
-        indicator.text = "GitHub Actions workflow generated!"
-        indicator.fraction = 0.9
+        indicator.text = "GitHub Actions workflow created successfully!"
+        indicator.fraction = 1.0
+
+        println("GitHub Actions workflow created at: ${workflowFile.absolutePath}")
     }
 
     private fun generateDockerCompose(
@@ -258,13 +270,9 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
 
         saveToFile(project, "Dockerfile", dockerfile)
 
-        indicator.text = "Generating GitHub Actions workflow..."
+        indicator.text = "Generating GitHub Actions workflow with MCP context..."
         indicator.fraction = 0.4
-        val workflow = claudeService.generateGitHubActionsWorkflow(projectInfo)
-        val basePath = project.basePath ?: return
-        val workflowDir = File(basePath, ".github/workflows")
-        workflowDir.mkdirs()
-        File(workflowDir, "ci-cd.yml").writeText(workflow)
+        generateGitHubActionsWorkflow(mcpContext, project, indicator)
 
         indicator.text = "Generating docker-compose.yml with MCP context..."
         indicator.fraction = 0.6
