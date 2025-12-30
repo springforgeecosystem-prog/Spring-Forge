@@ -5,21 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlvalidator): add initial schema validation logic">
-      <change afterPath="$PROJECT_DIR$/.idea/$PROJECT_FILE$" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/qaplug_profiles.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/AnalyzeErrorAction.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/collector/ErrorCollector.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/collector/FileClassifier.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/ConsoleErrorListener.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/ErrorStore.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/RunListener.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/network/AnalysisResponse.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/StartDebuggerAction.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/AnalyzeErrorAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/AnalyzeErrorAction.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -250,7 +237,10 @@
       <workItem from="1765973427632" duration="28000" />
       <workItem from="1765991335610" duration="26000" />
       <workItem from="1766737532879" duration="1182000" />
-      <workItem from="1766741063433" duration="5686000" />
+      <workItem from="1766741063433" duration="6421000" />
+      <workItem from="1766925538426" duration="1113000" />
+      <workItem from="1767120127871" duration="1910000" />
+      <workItem from="1766758928410" duration="210000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
@@ -281,5 +271,20 @@
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
     <MESSAGE value="feat(yamlvalidator): add initial schema validation logic" />
     <option name="LAST_COMMIT_MESSAGE" value="feat(yamlvalidator): add initial schema validation logic" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="kotlin-function">
+          <url>file://$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/ConsoleErrorListener.kt</url>
+          <line>19</line>
+          <properties class="org.springforge.runtimeanalysis.console.ConsoleErrorListener" method="onTextAvailable">
+            <option name="EMULATED" value="true" />
+            <option name="WATCH_EXIT" value="false" />
+          </properties>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>

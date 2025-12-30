@@ -13,6 +13,11 @@
     <extensions defaultExtensionNs="com.intellij">
         <executionListener
                 implementation="org.springforge.runtimeanalysis.console.RunListener"/>
+        <notificationGroup
+                id="SpringForge Notifications"
+                displayType="BALLOON"
+                isLogByDefault="true"
+                title="SpringForge"/>
     </extensions>
 
 
@@ -46,6 +51,7 @@
                     text="Analyze with SpringForge"
                     description="Analyze selected console stacktrace">
             </action>
+
         </group>
 
     </actions>
