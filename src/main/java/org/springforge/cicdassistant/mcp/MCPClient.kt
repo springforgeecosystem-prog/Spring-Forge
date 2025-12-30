@@ -70,11 +70,12 @@ class MCPClient {
      * that LLMs can consume efficiently.
      *
      * @param projectInfo The analyzed project information from ProjectAnalyzerService
+     * @param projectPath Path to the project root (for git default branch detection)
      * @return MCPContext ready for serialization and transmission to Bedrock
      */
-    fun packageContext(projectInfo: ProjectInfo): MCPContext {
+    fun packageContext(projectInfo: ProjectInfo, projectPath: String? = null): MCPContext {
         return MCPContext(
-            metadata = buildMetadata(projectInfo),
+            metadata = buildMetadata(projectInfo, projectPath),
             project = buildMCPProject(projectInfo),
             configuration = buildMCPConfiguration(projectInfo),
             codeStructure = buildMCPCodeStructure(projectInfo.codeStructure)
@@ -154,19 +155,54 @@ class MCPClient {
     /**
      * Builds MCPMetadata with current timestamp, version info, and architecture type detection.
      */
-    private fun buildMetadata(projectInfo: ProjectInfo): MCPMetadata {
+    private fun buildMetadata(projectInfo: ProjectInfo, projectPath: String?): MCPMetadata {
         // Detect architecture type from ProjectInfo
         val architectureType = when (projectInfo.architectureType) {
             "INTELLIJ_PLUGIN" -> "INTELLIJ_PLUGIN"
             else -> "SPRING_BOOT"
         }
-        
+
+        // Detect default branch from git repository (if path provided)
+        val defaultBranch = if (projectPath != null) {
+            detectDefaultBranch(projectPath)
+        } else {
+            "main" // Fallback if no path provided
+        }
+
         return MCPMetadata(
             analysisTimestamp = Instant.now().toString(),
             pluginVersion = "1.0-SNAPSHOT",
             mcpVersion = "1.0",
-            architectureType = architectureType
+            architectureType = architectureType,
+            defaultBranch = defaultBranch
         )
+    }
+
+    /**
+     * Detects the default branch from a local git repository.
+     * Tries to get the default branch from the remote origin HEAD.
+     * Falls back to "main" if detection fails or git is not initialized.
+     */
+    private fun detectDefaultBranch(projectPath: String): String {
+        return try {
+            val process = ProcessBuilder(
+                "git", "symbolic-ref", "refs/remotes/origin/HEAD"
+            ).directory(java.io.File(projectPath))
+                .redirectErrorStream(true)
+                .start()
+
+            val output = process.inputStream.bufferedReader().readText().trim()
+            process.waitFor()
+
+            if (process.exitValue() == 0 && output.isNotEmpty()) {
+                // Output format: refs/remotes/origin/main
+                output.substringAfterLast("/")
+            } else {
+                "main" // Default fallback
+            }
+        } catch (e: Exception) {
+            "main" // Fallback if git command fails
+        }
     }
 
     /**

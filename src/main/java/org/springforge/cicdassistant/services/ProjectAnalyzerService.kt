@@ -401,10 +401,10 @@ class ProjectAnalyzerService {
     fun analyzeProjectWithMCP(project: Project): MCPContext {
         // 1. Perform standard project analysis
         val projectInfo = analyzeProject(project)
-        
-        // 2. Package into MCP format
-        val mcpContext = mcpClient.packageContext(projectInfo)
-        
+
+        // 2. Package into MCP format (with project path for git detection)
+        val mcpContext = mcpClient.packageContext(projectInfo, project.basePath)
+
         // 3. Filter sensitive data before returning
         return mcpClient.filterSensitiveData(mcpContext)
     }

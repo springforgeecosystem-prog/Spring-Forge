@@ -56,19 +56,22 @@ class GitHubMCPClient(
         connector.connect()
 
         try {
-            // Skip repository metadata - focus on file content analysis
-            println("[1/6] Analyzing repository: $owner/$repo (branch: $branchName)...")
+            // Step 1: Detect default branch
+            println("[1/7] Detecting default branch...")
+            val defaultBranch = detectDefaultBranch(owner, repo)
+            this@GitHubMCPClient.branch = defaultBranch // Update branch to use detected default
             println("✓ Repository: $repo")
+            println("✓ Default branch: $defaultBranch")
 
             // Step 2: Detect build tool (Maven or Gradle) and architecture type
-            println("[2/6] Detecting build tool and architecture type...")
+            println("[2/7] Detecting build tool and architecture type...")
             val buildTool = detectBuildTool(owner, repo)
             val architectureType = detectArchitectureType(owner, repo, buildTool)
             println("✓ Build tool: $buildTool")
             println("✓ Architecture: $architectureType")
 
             // Step 3: Extract dependencies
-            println("[3/6] Extracting dependencies...")
+            println("[3/7] Extracting dependencies...")
             val dependencies = when (buildTool) {
                 "Maven" -> extractMavenDependencies(owner, repo)
                 "Gradle" -> extractGradleDependencies(owner, repo)
@@ -77,7 +80,7 @@ class GitHubMCPClient(
             println("✓ Found ${dependencies.size} dependencies")
 
             // Step 4: Extract configuration (pass dependencies for database detection)
-            println("[4/6] Extracting configuration...")
+            println("[4/7] Extracting configuration...")
             val configuration = extractConfiguration(owner, repo, dependencies)
             println("✓ Server port: ${configuration.serverPort}")
             if (configuration.datasourceUrl != null) {
@@ -85,12 +88,12 @@ class GitHubMCPClient(
             }
 
             // Step 5: Analyze code structure
-            println("[5/6] Analyzing code structure...")
+            println("[5/7] Analyzing code structure...")
             val codeStructure = analyzeCodeStructure(owner, repo)
             println("✓ Controllers: ${codeStructure.controllers.size}, Services: ${codeStructure.services.size}")
 
             // Step 6: Build MCPContext
-            println("[6/6] Building MCP context...")
+            println("[6/7] Building MCP context...")
 
             // Extract database type from datasource URL for BedrockClient prompt
             val databaseType = configuration.datasourceUrl?.let { extractDbType(it) }
@@ -99,7 +102,8 @@ class GitHubMCPClient(
                 metadata = MCPMetadata(
                     analysisTimestamp = Instant.now().toString(),
                     mcpVersion = "1.0",
-                    architectureType = architectureType // Detected from build files
+                    architectureType = architectureType, // Detected from build files
+                    defaultBranch = defaultBranch // Detected from repository metadata
                 ),
                 project = MCPProject(
                     name = repo,
@@ -122,6 +126,7 @@ class GitHubMCPClient(
             println("Datasource URL: ${mcpContext.configuration?.datasourceUrl ?: "None"}")
             println("============================\n")
 
+            println("[7/7] Analysis complete!")
             println("✓ GitHub repository analysis complete!\n")
             mcpContext
 
@@ -157,16 +162,73 @@ class GitHubMCPClient(
     }
 
     /**
-     * Get repository metadata using get_repository tool
+     * Detect the default branch of a repository.
+     * Uses get_repository_tree without tree_sha, which defaults to the repo's default branch.
+     * Then we can check the current branch from the response or use list_branches.
      */
-    private fun getRepositoryInfo(owner: String, repo: String): Map<String, Any> {
-        return connector.callTool(
-            toolName = "get_repository",
-            arguments = mapOf(
-                "owner" to owner,
-                "repo" to repo
+    private fun detectDefaultBranch(owner: String, repo: String): String {
+        return try {
+            // Use list_branches to get all branches
+            val result = connector.callTool(
+                toolName = "list_branches",
+                arguments = mapOf(
+                    "owner" to owner,
+                    "repo" to repo
+                )
             )
-        )
+
+            val branches = result["branches"] as? List<*>
+
+            // Try to find a branch marked as default in the response
+            val defaultBranch = branches?.find { branch ->
+                (branch as? Map<*, *>)?.get("is_default") == true ||
+                (branch as? Map<*, *>)?.get("default") == true
+            }
+
+            if (defaultBranch != null) {
+                val branchName = (defaultBranch as Map<*, *>)["name"] as? String
+                if (branchName != null) {
+                    println("[GitHubMCPClient] Found default branch from API: $branchName")
+                    return branchName
+                }
+            }
+
+            // Fallback: Try each common default branch individually using get_file_contents
+            // to see which one exists as the repository's default
+            val commonDefaults = listOf("master", "main", "develop", "trunk")
+
+            for (candidateBranch in commonDefaults) {
+                try {
+                    // Try to get README or any file from this branch
+                    connector.callTool(
+                        toolName = "get_file_contents",
+                        arguments = mapOf(
+                            "owner" to owner,
+                            "repo" to repo,
+                            "path" to "README.md",
+                            "ref" to candidateBranch
+                        )
+                    )
+                    // If this succeeds, the branch exists and is likely the default
+                    println("[GitHubMCPClient] Detected default branch by probing: $candidateBranch")
+                    return candidateBranch
+                } catch (e: Exception) {
+                    // Branch doesn't exist or doesn't have README, try next
+                    continue
+                }
+            }
+
+            // Final fallback: use first branch from list or "main"
+            val branchNames = branches?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String } ?: emptyList()
+            val detected = branchNames.firstOrNull() ?: "main"
+
+            println("[GitHubMCPClient] Using first available branch as default: $detected")
+            detected
+
+        } catch (e: Exception) {
+            println("[GitHubMCPClient] Failed to detect default branch: ${e.message}, using 'main'")
+            "main" // Fallback
+        }
     }
 
     /**
