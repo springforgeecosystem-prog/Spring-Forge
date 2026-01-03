@@ -20,6 +20,7 @@
         <toolWindow
                 id="SpringForge"
                 anchor="right"
+                icon="AllIcons.Nodes.Module"
                 factoryClass="org.springforge.toolwindow.SpringForgeToolWindowFactory"/>
 
         <!-- Legacy Quality Tool Window (can be removed if not needed) -->
