@@ -11,8 +11,6 @@
     <depends>com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <executionListener
-                implementation="org.springforge.runtimeanalysis.console.RunListener"/>
         <notificationGroup
                 id="SpringForge Notifications"
                 displayType="BALLOON"

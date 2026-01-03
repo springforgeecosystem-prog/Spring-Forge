@@ -6,7 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlvalidator): add initial schema validation logic">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/AnalyzeErrorAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/actions/AnalyzeErrorAction.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -240,7 +239,8 @@
       <workItem from="1766741063433" duration="6421000" />
       <workItem from="1766925538426" duration="1113000" />
       <workItem from="1767120127871" duration="1910000" />
-      <workItem from="1766758928410" duration="210000" />
+      <workItem from="1766758928410" duration="811000" />
+      <workItem from="1767459429668" duration="284000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
