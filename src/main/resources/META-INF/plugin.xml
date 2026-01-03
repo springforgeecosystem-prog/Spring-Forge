@@ -12,6 +12,17 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="SpringForge" displayType="BALLOON" isLogByDefault="true"/>
+
+        <!-- Project-level service for tool window -->
+        <projectService serviceImplementation="org.springforge.toolwindow.SpringForgeToolWindowService"/>
+
+        <!-- Main SpringForge Tool Window (sidebar) -->
+        <toolWindow
+                id="SpringForge"
+                anchor="right"
+                factoryClass="org.springforge.toolwindow.SpringForgeToolWindowFactory"/>
+
+        <!-- Legacy Quality Tool Window (can be removed if not needed) -->
         <toolWindow
                 id="SpringForgeQuality"
                 anchor="right"
