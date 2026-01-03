@@ -5,7 +5,75 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlvalidator): add initial schema validation logic">
+      <change afterPath="$PROJECT_DIR$/.dockerignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.gitattributes" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/analyzer/ProjectStructureAnalyzer.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/bedrock/BedrockClient.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/config/EnvironmentConfig.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/github/GitHubMCPClient.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/github/mcp/GitHubMCPServerConnector.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/github/mcp/MCPProtocol.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/mcp/MCPClient.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/mcp/models/MCPCodeStructure.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/mcp/models/MCPConfiguration.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/mcp/models/MCPContext.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/mcp/models/MCPMetadata.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/mcp/models/MCPProject.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/parsers/CodeStructureAnalyzer.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/parsers/ConfigurationScanner.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/parsers/GradleBuildAnalyzer.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/parsers/MavenProjectParser.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/prompts/DockerfilePromptBuilder.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/services/ClaudeService.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/services/ProjectAnalyzerService.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/ui/SourceSelectionDialog.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/CreateNewProjectAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/ExistingProjectAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GeneratePromptAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/FeatureExtractor.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalysisResult.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectAnalyzer.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/analysis/ProjectContextBuilder.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/InputModel.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/ParseResult.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/YamlParser.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/parser/YamlWriter.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/ArchHelpers.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/ArchitecturePredictor.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/InferenceClient.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/PromptBuilder.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/SpringInitializrClient.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/service/TemplateGenerator.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/CreateProjectDialog.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/DependencySelector.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/ui/YamlPreviewDialog.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/utils/ZipUtils.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlAutoFixer.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlSchema.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/validation/YamlValidator.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/actions/AnalyzeQualityAction.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/analysis/PsiFeatureExtractor.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/extractor/LayerClassifier.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/model/AntiPatternDetail.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/model/EnhancedPredictionResult.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/model/FeatureModel.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/model/FileFeatureModel.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/model/PredictionResult.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/model/ProjectAnalysisRequest.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/network/MLServiceClient.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/toolwindow/QualityResultsPanel.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/toolwindow/QualityToolWindowFactory.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/toolwindow/QualityToolWindowPanel.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/toolwindow/QualityToolWindowService.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/ui/ArchitectureSelectDialog.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/utils/JsonUtil.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/actions/GeneratePipelineAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/cicdassistant/actions/GeneratePipelineAction.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GenerateCodeAction.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/codegeneration/actions/GenerateCodeAction.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/qualityassurance/actions/SmartRefactorAction.kt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -85,37 +153,37 @@
     <option name="showMembers" value="true" />
     <option name="showVisibilityIcons" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
-    &quot;Gradle.Build Spring-Forge.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Build SpringForge-CodeGeneration.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Spring-Forge [setupDependencies].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [:Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [clean].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [runIde].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SpringForge-CodeGeneration [setupDependencies].executor&quot;: &quot;Run&quot;,
-    &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/error-context-extractor&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/Y4S1/Research/Repo/Spring-Forge&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;onboarding.tips.debug.path&quot;: &quot;E:/Edu/Research/SpringForge/SpringForge-CodeGeneration/src/main/java/org/SpringForge/Main.java&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;reference.settingsdialog.project.gradle&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_ADD_EXTERNAL_FILES": "true",
+    "Gradle.Build Spring-Forge.executor": "Run",
+    "Gradle.Build SpringForge-CodeGeneration.executor": "Run",
+    "Gradle.Spring-Forge [setupDependencies].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [:Main.main()].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [build].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [clean].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [runIde].executor": "Run",
+    "Gradle.SpringForge-CodeGeneration [setupDependencies].executor": "Run",
+    "Kotlin script (Beta).build.gradle.kts.executor": "Run",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "Merging feat/error-context-extractor",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "E:/Y4S1/Research/Repo/Spring-Forge",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "onboarding.tips.debug.path": "E:/Edu/Research/SpringForge/SpringForge-CodeGeneration/src/main/java/org/SpringForge/Main.java",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "settings.editor.selected.configurable": "reference.settingsdialog.project.gradle",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="E:\Edu\Research\Project\SpringForge\SpringForge-CodeGeneration\src\main\java\org\springforge\codegeneration\analysis" />
