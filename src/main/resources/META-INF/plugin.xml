@@ -18,29 +18,83 @@
                 displayType="BALLOON"
                 isLogByDefault="true"
                 title="SpringForge"/>
+
+        <!-- Project-level service for tool window -->
+        <projectService serviceImplementation="org.springforge.toolwindow.SpringForgeToolWindowService"/>
+
+        <!-- Main SpringForge Tool Window (sidebar) -->
+        <toolWindow
+                id="SpringForge"
+                anchor="right"
+                icon="AllIcons.Nodes.Module"
+                factoryClass="org.springforge.toolwindow.SpringForgeToolWindowFactory"/>
+
+        <!-- Legacy Quality Tool Window (can be removed if not needed) -->
+        <toolWindow
+                id="SpringForgeQuality"
+                anchor="right"
+                factoryClass="org.springforge.qualityassurance.toolwindow.QualityToolWindowFactory"/>
     </extensions>
 
 
     <actions>
 
-        <!-- Parent Menu Group with popup="true" -->
+        <!-- ==============================
+             ROOT MENU: SpringForge
+           ============================== -->
         <group id="SpringForge.Menu"
                text="SpringForge"
                description="SpringForge Tools"
                popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
-            <!-- Child actions INSIDE the parent group -->
-            <action id="SpringForge.CodeGen.Generate"
-                    class="org.springforge.codegeneration.actions.GenerateCodeAction"
-                    text="Generate Code"
-                    description="Generate Spring Boot code"/>
+            <!-- ==============================
+                 Code Generation (Dropdown)
+               ============================== -->
+            <group id="SpringForge.CodeGen"
+                   text="Generate Code"
+                   description="Code generation and architecture tools"
+                   popup="true">
 
-            <action id="SpringForge.Refactor.Action"
-                    class="org.springforge.qualityassurance.actions.SmartRefactorAction"
-                    text="Smart Refactor"
-                    description="Refactor Spring Boot files"/>
 
+                <!-- existing actions -->
+                <action id="org.SpringForge.actions.CreateNewProjectAction"
+                        class="org.springforge.codegeneration.actions.CreateNewProjectAction"
+                        text="SpringForge: Create New Spring Boot Project"
+                        description="Create and initialize a new Spring Boot project with architecture template"/>
+                <!-- other actions -->
+
+                <action id="SpringForge.CodeGen.ExistingProject"
+                        class="org.springforge.codegeneration.actions.ExistingProjectAction"
+                        text="Existing Project (Detect Architecture)"
+                        description="Analyze existing project detect architecture using ML"/>
+
+                <action id="SpringForge.CodeGen.GeneratePrompt"
+                        class="org.springforge.codegeneration.actions.GeneratePromptAction"
+                        text="Generate Prompt for Code Generation"
+                        description="Parse input.yml + analyze project + build LLM prompt"/>
+
+            </group>
+
+            <!-- ==============================
+                 Smart Refactor
+               ============================== -->
+            <action
+                    id="SpringForge.AnalyzeQuality"
+                    class="org.springforge.qualityassurance.actions.AnalyzeQualityAction"
+                    text="Analyze Code Quality"/>
+
+            <!-- ==============================
+                 Runtime Debugger
+               ============================== -->
+            <action id="SpringForge.Debugger.Action"
+                    class="org.springforge.runtimeanalysis.actions.StartDebuggerAction"
+                    text="Start Runtime Debugger"
+                    description="Debugger module"/>
+
+            <!-- ==============================
+                 CI/CD Generator
+               ============================== -->
             <action id="SpringForge.CICD.Action"
                     class="org.springforge.cicdassistant.actions.GeneratePipelineAction"
                     text="Generate CI/CD Pipeline"
@@ -53,6 +107,7 @@
             </action>
 
         </group>
+
 
     </actions>
 
