@@ -22,11 +22,7 @@
                 anchor="right"
                 factoryClass="org.springforge.toolwindow.SpringForgeToolWindowFactory"/>
 
-        <!-- Legacy Quality Tool Window (can be removed if not needed) -->
-        <toolWindow
-                id="SpringForgeQuality"
-                anchor="right"
-                factoryClass="org.springforge.qualityassurance.toolwindow.QualityToolWindowFactory"/>
+
     </extensions>
 
     <actions>

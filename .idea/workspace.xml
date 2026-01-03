@@ -6,6 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="fix: fixed predicted architecture not updating in prompt file issue">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -72,7 +73,7 @@
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
         <entry key="$PROJECT_DIR$/.." value="main" />
-        <entry key="$PROJECT_DIR$" value="feat/DependencyInjector" />
+        <entry key="$PROJECT_DIR$" value="fix/Prompt-Generator" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -111,7 +112,7 @@
     &quot;Kotlin script (Beta).build.gradle.kts.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;fix/Prompt-Generator&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;fix/ui-fix&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;E:/Edu/Research/SpringForge/spring_architectures/clean/2hwan_hood_backend&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
@@ -266,7 +267,8 @@
       <workItem from="1766299438791" duration="3778000" />
       <workItem from="1766918837792" duration="4773000" />
       <workItem from="1767441962828" duration="1724000" />
-      <workItem from="1767446435533" duration="800000" />
+      <workItem from="1767446435533" duration="1058000" />
+      <workItem from="1767447521714" duration="724000" />
     </task>
     <task id="LOCAL-00001" summary="feat(yamlvalidator): add initial schema validation logic">
       <option name="closed" value="true" />
