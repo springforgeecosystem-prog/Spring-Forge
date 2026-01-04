@@ -69,7 +69,7 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
         inputArea.lineWrap = true
         inputArea.wrapStyleWord = true
         inputArea.border = BorderFactory.createLineBorder(JBColor.border())
-        inputArea.text = "Paste your error stacktrace here..."
+        inputArea.rows = 6
 
         // 🔹 Output Area
         outputArea.isEditable = false
@@ -87,9 +87,12 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
         topPanel.add(buttonPanel, BorderLayout.SOUTH)
 
         // 🔹 Middle Panel (Input)
+        val inputScrollPane = JBScrollPane(inputArea)
+        inputScrollPane.preferredSize = java.awt.Dimension(inputScrollPane.preferredSize.width, 150)
+        
         val inputPanel = JPanel(BorderLayout())
         inputPanel.add(JBLabel("Error Input (Paste Here)"), BorderLayout.NORTH)
-        inputPanel.add(JBScrollPane(inputArea), BorderLayout.CENTER)
+        inputPanel.add(inputScrollPane, BorderLayout.CENTER)
 
         // 🔹 Bottom Panel (Output)
         val outputPanel = JPanel(BorderLayout())

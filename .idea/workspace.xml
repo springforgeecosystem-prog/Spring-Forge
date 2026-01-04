@@ -5,15 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a7692224-d562-40f7-a2cd-c91253815682" name="Changes" comment="feat(yamlvalidator): add initial schema validation logic">
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/ConsoleErrorListener.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/ConsoleErrorStore.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/console/SpringForgeRunListener.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/runtimeanalysis/service/RuntimeAnalyzeService.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/springforge/toolwindow/panels/RuntimeAnalysisPanel.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/toolwindow/SpringForgeToolWindowPanel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/toolwindow/SpringForgeToolWindowPanel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/toolwindow/panels/RuntimeDebuggerPanel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/toolwindow/panels/RuntimeDebuggerPanel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/plugin.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/springforge/toolwindow/panels/RuntimeAnalysisPanel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/springforge/toolwindow/panels/RuntimeAnalysisPanel.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
