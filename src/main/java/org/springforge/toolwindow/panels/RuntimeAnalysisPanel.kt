@@ -5,7 +5,6 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
-import org.springforge.runtimeanalysis.console.ConsoleErrorStore
 import org.springforge.runtimeanalysis.service.RuntimeAnalysisService
 import java.awt.BorderLayout
 import java.awt.Font
@@ -31,26 +30,10 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
         val title = JBLabel("Runtime Error Analysis")
         title.font = title.font.deriveFont(Font.BOLD, 14f)
 
-        // 🔹 Buttons
-        val analyzeLatestButton = JButton("Analyze Latest Runtime Error")
-        val analyzePastedButton = JButton("Analyze Pasted Error")
+        // 🔹 Button
+        val analyzeButton = JButton("Analyze Error")
 
-        analyzeLatestButton.addActionListener {
-            val errorText = ConsoleErrorStore.get()
-
-            if (errorText.isNullOrBlank()) {
-                Messages.showWarningDialog(
-                    project,
-                    "No runtime error detected yet.\nRun the application and trigger an error.",
-                    "SpringForge"
-                )
-                return@addActionListener
-            }
-
-            analyzeError(errorText)
-        }
-
-        analyzePastedButton.addActionListener {
+        analyzeButton.addActionListener {
             val errorText = inputArea.text.trim()
 
             if (errorText.isBlank()) {
@@ -78,13 +61,9 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
         outputArea.border = BorderFactory.createLineBorder(JBColor.border())
 
         // 🔹 Top Panel
-        val buttonPanel = JPanel()
-        buttonPanel.add(analyzeLatestButton)
-        buttonPanel.add(analyzePastedButton)
-
         val topPanel = JPanel(BorderLayout(5, 5))
-        topPanel.add(title, BorderLayout.NORTH)
-        topPanel.add(buttonPanel, BorderLayout.SOUTH)
+        topPanel.add(title, BorderLayout.WEST)
+        topPanel.add(analyzeButton, BorderLayout.EAST)
 
         // 🔹 Middle Panel (Input)
         val inputScrollPane = JBScrollPane(inputArea)
