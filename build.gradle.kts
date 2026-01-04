@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "1.9.23"
+    kotlin("plugin.serialization") version "1.9.10"
     id("org.jetbrains.intellij") version "1.17.0"
 }
 
@@ -15,6 +16,7 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.16.0")
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.16.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     // AWS Bedrock Dependencies - Use platform() for BOM
     implementation(platform("software.amazon.awssdk:bom:2.39.1"))

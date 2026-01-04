@@ -11,12 +11,17 @@
     <depends>com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="SpringForge" displayType="BALLOON" isLogByDefault="true"/>
+        <notificationGroup
+                id="SpringForge Notifications"
+                displayType="BALLOON"
+                isLogByDefault="true"
+                title="SpringForge"/>
         <toolWindow
                 id="SpringForgeQuality"
                 anchor="right"
                 factoryClass="org.springforge.qualityassurance.toolwindow.QualityToolWindowFactory"/>
     </extensions>
+
 
     <actions>
 
@@ -80,6 +85,12 @@
                     class="org.springforge.cicdassistant.actions.GeneratePipelineAction"
                     text="Generate CI/CD Pipeline"
                     description="Generate base CI/CD configuration"/>
+
+            <action id="SpringForge.AnalyzeFromConsole"
+                    class="org.springforge.runtimeanalysis.actions.AnalyzeErrorAction"
+                    text="Analyze with SpringForge"
+                    description="Analyze selected console stacktrace">
+            </action>
 
         </group>
 
