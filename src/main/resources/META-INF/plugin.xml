@@ -12,7 +12,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <executionListener
-                implementation="org.springforge.runtimeanalysis.console.RunListener"/>
+                implementation="org.springforge.runtimeanalysis.console.SpringForgeRunListener"/>
         <notificationGroup
                 id="SpringForge Notifications"
                 displayType="BALLOON"

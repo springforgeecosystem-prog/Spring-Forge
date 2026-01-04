@@ -1,20 +1,33 @@
 package org.springforge.toolwindow.panels
 
+import com.google.gson.Gson
+import com.intellij.ide.DataManager
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
-import org.springforge.runtimeanalysis.actions.StartDebuggerAction
+import com.intellij.ui.components.JBTextArea
+import org.springforge.runtimeanalysis.collector.ErrorCollector
+import org.springforge.runtimeanalysis.network.NetworkClient
+import org.springforge.runtimeanalysis.ui.SpringForgeNotifier
 import java.awt.BorderLayout
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import java.awt.Insets
-import javax.swing.*
+import javax.swing.BorderFactory
+import javax.swing.JButton
+import javax.swing.JPanel
 
-/**
- * Runtime Debugger Panel for SpringForge Tool Window
- */
 class RuntimeDebuggerPanel(private val project: Project) : JPanel() {
+
+    private val log = Logger.getInstance(RuntimeDebuggerPanel::class.java)
+
+    private val resultArea = JBTextArea()
+    private val analyzeButton = JButton("Analyze Selected Error")
+    private val statusLabel = JBLabel("Select an error in console/editor and click Analyze")
 
     init {
         layout = BorderLayout(10, 10)
@@ -23,132 +36,93 @@ class RuntimeDebuggerPanel(private val project: Project) : JPanel() {
     }
 
     private fun setupUI() {
-        val contentPanel = JPanel(GridBagLayout())
-        val gbc = GridBagConstraints()
-        gbc.fill = GridBagConstraints.HORIZONTAL
-        gbc.insets = Insets(5, 5, 5, 5)
-        gbc.gridx = 0
-        gbc.gridy = 0
-        gbc.weightx = 1.0
+        // Top
+        val topPanel = JPanel(BorderLayout())
+        val title = JBLabel("Runtime Error Analyzer")
+        title.font = title.font.deriveFont(14f).deriveFont(java.awt.Font.BOLD)
 
-        // Title
-        val titleLabel = JBLabel("Runtime Debugger")
-        titleLabel.font = titleLabel.font.deriveFont(14f).deriveFont(java.awt.Font.BOLD)
-        contentPanel.add(titleLabel, gbc)
+        analyzeButton.addActionListener { analyzeSelectedError() }
 
-        gbc.gridy++
-        contentPanel.add(JSeparator(), gbc)
+        topPanel.add(title, BorderLayout.WEST)
+        topPanel.add(analyzeButton, BorderLayout.EAST)
 
-        // Description
-        gbc.gridy++
-        val descLabel = JBLabel(
-            "<html>Advanced runtime analysis and<br>" +
-            "debugging tools for Spring Boot applications.</html>"
-        )
-        descLabel.foreground = JBColor.GRAY
-        contentPanel.add(descLabel, gbc)
+        // Center
+        resultArea.isEditable = false
+        resultArea.lineWrap = true
+        resultArea.wrapStyleWord = true
+        resultArea.font = java.awt.Font("JetBrains Mono", java.awt.Font.PLAIN, 12)
+        resultArea.text =
+                "No analysis yet.\n\n" +
+                        "Steps:\n" +
+                        "1. Select a stacktrace in Run console or editor\n" +
+                        "2. Click 'Analyze Selected Error'\n" +
+                        "3. AI analysis will appear here"
 
-        gbc.gridy++
-        contentPanel.add(Box.createVerticalStrut(15), gbc)
+        val scrollPane = JBScrollPane(resultArea)
 
-        // Start Debugger button
-        gbc.gridy++
-        val debuggerButton = createActionButton(
-            "Start Runtime Debugger",
-            "Launch the runtime analysis debugger module"
-        ) {
-            val action = StartDebuggerAction()
-            val event = createActionEvent()
-            action.actionPerformed(event)
-        }
-        contentPanel.add(debuggerButton, gbc)
+        // Bottom
+        statusLabel.foreground = JBColor.GRAY
 
-        // Add filler
-        gbc.gridy++
-        gbc.weighty = 1.0
-        gbc.fill = GridBagConstraints.BOTH
-        contentPanel.add(Box.createVerticalGlue(), gbc)
-
-        // Info panel
-        gbc.gridy++
-        gbc.weighty = 0.0
-        gbc.fill = GridBagConstraints.HORIZONTAL
-        contentPanel.add(createInfoPanel(), gbc)
-
-        // Wrap in scroll pane
-        val scrollPane = JBScrollPane(contentPanel)
+        add(topPanel, BorderLayout.NORTH)
         add(scrollPane, BorderLayout.CENTER)
+        add(statusLabel, BorderLayout.SOUTH)
     }
 
-    private fun createActionButton(
-        title: String,
-        description: String,
-        action: () -> Unit
-    ): JPanel {
-        val panel = JPanel(BorderLayout(10, 5))
-        panel.border = BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(JBColor.border()),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        )
+    private fun analyzeSelectedError() {
+        val dataContext = DataManager.getInstance().dataContext
+        val editor = CommonDataKeys.EDITOR.getData(dataContext)
 
-        val contentPanel = JPanel(BorderLayout(5, 2))
+        val selectedText = editor?.selectionModel?.selectedText
 
-        val titleLabel = JBLabel(title)
-        titleLabel.font = titleLabel.font.deriveFont(java.awt.Font.BOLD)
-
-        val descLabel = JBLabel("<html><small>$description</small></html>")
-        descLabel.foreground = JBColor.GRAY
-
-        contentPanel.add(titleLabel, BorderLayout.NORTH)
-        contentPanel.add(descLabel, BorderLayout.CENTER)
-
-        val button = JButton("Start")
-        button.addActionListener { action() }
-
-        panel.add(contentPanel, BorderLayout.CENTER)
-        panel.add(button, BorderLayout.EAST)
-
-        return panel
-    }
-
-    private fun createInfoPanel(): JPanel {
-        val panel = JPanel(BorderLayout())
-        panel.border = BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(1, 0, 0, 0, JBColor.border()),
-            BorderFactory.createEmptyBorder(10, 5, 5, 5)
-        )
-
-        val infoLabel = JBLabel(
-            "<html><small>" +
-            "<b>Features:</b><br>" +
-            "• Runtime performance monitoring<br>" +
-            "• Memory leak detection<br>" +
-            "• Request tracing<br>" +
-            "• Metrics collection<br>" +
-            "</small></html>"
-        )
-        infoLabel.foreground = JBColor.GRAY
-
-        panel.add(infoLabel, BorderLayout.CENTER)
-
-        return panel
-    }
-
-    private fun createActionEvent(): com.intellij.openapi.actionSystem.AnActionEvent {
-        val dataContext = com.intellij.openapi.actionSystem.DataContext { dataId ->
-            when (dataId) {
-                com.intellij.openapi.actionSystem.CommonDataKeys.PROJECT.name -> project
-                else -> null
-            }
+        if (selectedText.isNullOrBlank()) {
+            Messages.showWarningDialog(
+                    project,
+                    "Please select a stacktrace from console or editor.",
+                    "SpringForge"
+            )
+            return
         }
 
-        return com.intellij.openapi.actionSystem.AnActionEvent(
-            null,
-            dataContext,
-            com.intellij.openapi.actionSystem.ActionPlaces.UNKNOWN,
-            com.intellij.openapi.actionSystem.Presentation(),
-            com.intellij.openapi.actionSystem.ActionManager.getInstance(),
-            0
-        )
+        analyzeButton.isEnabled = false
+        statusLabel.text = "Analyzing error with SpringForge AI…"
+        statusLabel.foreground = JBColor(0x7A7A7A, 0x7A7A7A)
+        resultArea.text = "⏳ Analyzing selected error...\n\nPlease wait."
+
+        SpringForgeNotifier.info(project, "Analyzing error with SpringForge AI…")
+
+        val payload = ErrorCollector.buildErrorPayload(selectedText, project)
+        val json = Gson().toJson(payload)
+
+        ProgressManager.getInstance().run(object :
+                Task.Backgroundable(project, "SpringForge Runtime Analysis", false) {
+
+            override fun run(indicator: com.intellij.openapi.progress.ProgressIndicator) {
+                try {
+                    val response = NetworkClient.analyzeError(json)
+
+                    ApplicationManager.getApplication().invokeLater {
+                        resultArea.text = "✓ Analysis Result\n\n${response.answer}"
+                        resultArea.caretPosition = 0
+                        statusLabel.text = "✓ Analysis complete"
+                        statusLabel.foreground = JBColor(0x6A8759, 0x6A8759)
+                    }
+
+                } catch (ex: Exception) {
+                    log.error("Runtime analysis failed", ex)
+
+                    ApplicationManager.getApplication().invokeLater {
+                        resultArea.text =
+                                "❌ Analysis Failed\n\n${ex.message ?: "Unknown error"}"
+                        statusLabel.text = "✗ Analysis failed"
+                        statusLabel.foreground = JBColor.RED
+                        SpringForgeNotifier.error(project, "Analysis failed")
+                    }
+                } finally {
+                    ApplicationManager.getApplication().invokeLater {
+                        analyzeButton.isEnabled = true
+                    }
+                }
+            }
+        })
     }
 }
