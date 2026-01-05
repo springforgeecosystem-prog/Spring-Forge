@@ -1,0 +1,100 @@
+<idea-plugin>
+    <id>org.springforge</id>
+    <name>SpringForge Tools</name>
+    <vendor email="SpringForge@yourorg.com">springforge</vendor>
+    <version>1.0.0</version>
+
+    <description>
+        Architecture-aware Spring Boot tool suite (CodeGen, QA, Runtime Analysis, CI/CD).
+    </description>
+
+    <depends>com.intellij.modules.java</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup
+                id="SpringForge Notifications"
+                displayType="BALLOON"
+                isLogByDefault="true"
+                title="SpringForge"/>
+        <toolWindow
+                id="SpringForgeQuality"
+                anchor="right"
+                factoryClass="org.springforge.qualityassurance.toolwindow.QualityToolWindowFactory"/>
+    </extensions>
+
+
+    <actions>
+
+        <!-- ==============================
+             ROOT MENU: SpringForge
+           ============================== -->
+        <group id="SpringForge.Menu"
+               text="SpringForge"
+               description="SpringForge Tools"
+               popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <!-- ==============================
+                 Code Generation (Dropdown)
+               ============================== -->
+            <group id="SpringForge.CodeGen"
+                   text="Generate Code"
+                   description="Code generation and architecture tools"
+                   popup="true">
+
+
+                <!-- existing actions -->
+                <action id="org.SpringForge.actions.CreateNewProjectAction"
+                        class="org.springforge.codegeneration.actions.CreateNewProjectAction"
+                        text="SpringForge: Create New Spring Boot Project"
+                        description="Create and initialize a new Spring Boot project with architecture template"/>
+                <!-- other actions -->
+
+                <action id="SpringForge.CodeGen.ExistingProject"
+                        class="org.springforge.codegeneration.actions.ExistingProjectAction"
+                        text="Existing Project (Detect Architecture)"
+                        description="Analyze existing project detect architecture using ML"/>
+
+                <action id="SpringForge.CodeGen.GeneratePrompt"
+                        class="org.springforge.codegeneration.actions.GeneratePromptAction"
+                        text="Generate Prompt for Code Generation"
+                        description="Parse input.yml + analyze project + build LLM prompt"/>
+
+            </group>
+
+            <!-- ==============================
+                 Smart Refactor
+               ============================== -->
+            <action
+                    id="SpringForge.AnalyzeQuality"
+                    class="org.springforge.qualityassurance.actions.AnalyzeQualityAction"
+                    text="Analyze Code Quality"/>
+
+            <!-- ==============================
+                 Runtime Debugger
+               ============================== -->
+            <action id="SpringForge.Debugger.Action"
+                    class="org.springforge.runtimeanalysis.actions.StartDebuggerAction"
+                    text="Start Runtime Debugger"
+                    description="Debugger module"/>
+
+            <!-- ==============================
+                 CI/CD Generator
+               ============================== -->
+            <action id="SpringForge.CICD.Action"
+                    class="org.springforge.cicdassistant.actions.GeneratePipelineAction"
+                    text="Generate CI/CD Pipeline"
+                    description="Generate base CI/CD configuration"/>
+
+            <action id="SpringForge.AnalyzeFromConsole"
+                    class="org.springforge.runtimeanalysis.actions.AnalyzeErrorAction"
+                    text="Analyze with SpringForge"
+                    description="Analyze selected console stacktrace">
+            </action>
+
+        </group>
+
+
+    </actions>
+
+</idea-plugin>
