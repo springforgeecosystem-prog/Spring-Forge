@@ -176,10 +176,8 @@ class CodeGenerationPanel(private val project: Project) : JPanel() {
             "<html><small>" +
             "<b>Architecture Patterns Supported:</b><br>" +
             "• Layered Architecture<br>" +
-            "• Hexagonal (Ports & Adapters)<br>" +
             "• Clean Architecture<br>" +
-            "• Event-Driven Architecture<br>" +
-            "• Microservices<br>" +
+            "• MVC<br>" +
             "</small></html>"
         )
         infoLabel.foreground = JBColor.GRAY
