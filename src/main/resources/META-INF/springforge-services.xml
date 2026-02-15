@@ -1,0 +1,6 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Project-level services -->
+        <projectService serviceImplementation="org.springforge.toolwindow.SpringForgeToolWindowService"/>
+    </extensions>
+</idea-plugin>
