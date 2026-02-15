@@ -8,8 +8,15 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
+import kotlinx.coroutines.runBlocking
+import org.springforge.cicdassistant.bedrock.BedrockClient
+import org.springforge.cicdassistant.github.GitHubMCPClient
+import org.springforge.cicdassistant.github.mcp.GitHubMCPServerConnector
+import org.springforge.cicdassistant.mcp.models.MCPContext
 import org.springforge.cicdassistant.services.ClaudeService
 import org.springforge.cicdassistant.services.ProjectAnalyzerService
+import org.springforge.cicdassistant.ui.SourceSelectionDialog
+import org.springforge.cicdassistant.ui.SourceType
 import java.io.File
 
 /**
@@ -20,7 +27,15 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        // Show generation options dialog
+        // Step 1: Show source selection dialog (Local vs GitHub)
+        val sourceDialog = SourceSelectionDialog(project)
+        if (!sourceDialog.showAndGet()) return // User cancelled
+
+        val selectedSource = sourceDialog.selectedSource
+        val githubUrl = sourceDialog.githubUrl
+        val githubBranch = sourceDialog.githubBranch
+
+        // Step 2: Show generation options dialog
         val options = arrayOf(
             "Dockerfile",
             "GitHub Actions Workflow",
@@ -29,9 +44,15 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
             "All CI/CD Files"
         )
 
+        val sourceLabel = if (selectedSource == SourceType.LOCAL) {
+            "Local Project"
+        } else {
+            "GitHub: ${githubUrl.substringAfterLast("/")}"
+        }
+
         val choice = Messages.showChooseDialog(
             project,
-            "Select what to generate for your Spring Boot project:",
+            "Source: $sourceLabel\n\nSelect what to generate:",
             "SpringForge - CI/CD Generator",
             Messages.getQuestionIcon(),
             options,
@@ -40,13 +61,36 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
 
         if (choice < 0) return // User cancelled
 
-        // Run generation in background with progress
+        // Step 3: Run generation in background with progress
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Generating CI/CD Files with Claude Sonnet 4.5", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    indicator.text = "Analyzing Spring Boot project..."
-                    indicator.fraction = 0.1
+                    // Get MCP Context based on source type
+                    val mcpContext = when (selectedSource) {
+                        SourceType.LOCAL -> {
+                            indicator.text = "Analyzing local Spring Boot project..."
+                            indicator.fraction = 0.1
 
+                            val analyzerService = ProjectAnalyzerService()
+                            analyzerService.analyzeProjectWithMCP(project)
+                        }
+                        SourceType.GITHUB -> {
+                            indicator.text = "Connecting to GitHub MCP Server..."
+                            indicator.fraction = 0.1
+
+                            val connector = GitHubMCPServerConnector()
+                            val githubClient = GitHubMCPClient(connector)
+
+                            indicator.text = "Analyzing GitHub repository: $githubUrl (branch: $githubBranch)..."
+                            indicator.fraction = 0.2
+
+                            runBlocking {
+                                githubClient.analyzeGitHubRepository(githubUrl, githubBranch)
+                            }
+                        }
+                    }
+
+                    // Legacy code for backward compatibility
                     val analyzerService = ProjectAnalyzerService()
                     val projectInfo = analyzerService.analyzeProject(project)
                     val projectInfoStr = analyzerService.formatProjectInfoForPrompt(projectInfo)
@@ -57,11 +101,11 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
                     val claudeService = ClaudeService()
 
                     when (choice) {
-                        0 -> generateDockerfile(claudeService, projectInfoStr, project, indicator)
-                        1 -> generateGitHubActions(claudeService, projectInfoStr, project, indicator)
-                        2 -> generateDockerCompose(claudeService, projectInfoStr, project, indicator)
+                        0 -> generateDockerfile(mcpContext, project, indicator)
+                        1 -> generateGitHubActionsWorkflow(mcpContext, project, indicator)
+                        2 -> generateDockerComposeWithMCP(mcpContext, project, indicator)
                         3 -> generateKubernetesManifests(claudeService, projectInfoStr, project, indicator)
-                        4 -> generateAllFiles(claudeService, projectInfoStr, project, indicator)
+                        4 -> generateAllFiles(mcpContext, claudeService, projectInfoStr, project, indicator)
                     }
 
                     claudeService.close()
@@ -91,49 +135,60 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
     }
 
     private fun generateDockerfile(
-        claudeService: ClaudeService,
-        projectInfo: String,
+        mcpContext: MCPContext,
         project: com.intellij.openapi.project.Project,
         indicator: ProgressIndicator
     ) {
-        indicator.text = "Analyzing codebase structure with AST..."
-        indicator.fraction = 0.3
+        indicator.text = "Generating Dockerfile with Claude 4 Sonnet..."
+        indicator.fraction = 0.5
 
-        //  Get full AST-analyzed project info
-        val analyzerService = ProjectAnalyzerService()
-        val analyzedInfo = analyzerService.analyzeProject(project)
+        indicator.text = "Calling AWS Bedrock with MCP context..."
+        indicator.fraction = 0.7
 
-        indicator.text = "Generating intelligent Dockerfile with Claude Sonnet 4.5..."
-        indicator.fraction = 0.6
+        // Use BedrockClient with architecture detection and prefill
+        val bedrockClient = BedrockClient()
+        val mcpContextJson = com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(mcpContext)
+        val dockerfile = bedrockClient.generateDockerfile(mcpContextJson, usePrefill = true)
+        bedrockClient.close()
 
-        //  Use AST-aware generation instead of string-based
-        val dockerfile = claudeService.generateDockerfileFromAnalysis(analyzedInfo)
         saveToFile(project, "Dockerfile", dockerfile)
 
         indicator.text = "Dockerfile generated!"
         indicator.fraction = 0.9
     }
 
-    private fun generateGitHubActions(
-        claudeService: ClaudeService,
-        projectInfo: String,
+    /**
+     * Generates GitHub Actions workflow file using MCP context and BedrockClient.
+     */
+    private fun generateGitHubActionsWorkflow(
+        mcpContext: MCPContext,
         project: com.intellij.openapi.project.Project,
         indicator: ProgressIndicator
     ) {
         indicator.text = "Generating GitHub Actions workflow..."
-        indicator.fraction = 0.5
+        indicator.fraction = 0.3
 
-        val workflow = claudeService.generateGitHubActionsWorkflow(projectInfo)
+        val bedrockClient = BedrockClient()
+        val mcpContextJson = com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(mcpContext)
+        val workflow = bedrockClient.generateGitHubActionsWorkflow(mcpContextJson)
+        bedrockClient.close()
+
+        indicator.text = "Writing .github/workflows/build.yml..."
+        indicator.fraction = 0.7
 
         // Create .github/workflows directory
-        val basePath = project.basePath ?: return
+        val basePath = project.basePath ?: throw IllegalStateException("Project path not found")
         val workflowDir = File(basePath, ".github/workflows")
         workflowDir.mkdirs()
 
-        File(workflowDir, "ci-cd.yml").writeText(workflow)
+        // Write workflow file
+        val workflowFile = File(workflowDir, "build.yml")
+        workflowFile.writeText(workflow)
 
-        indicator.text = "GitHub Actions workflow generated!"
-        indicator.fraction = 0.9
+        indicator.text = "GitHub Actions workflow created successfully!"
+        indicator.fraction = 1.0
+
+        println("GitHub Actions workflow created at: ${workflowFile.absolutePath}")
     }
 
     private fun generateDockerCompose(
@@ -148,6 +203,29 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
         val compose = claudeService.generateDockerCompose(projectInfo)
         saveToFile(project, "docker-compose.yml", compose)
 
+        indicator.text = "docker-compose.yml generated!"
+        indicator.fraction = 0.9
+    }
+    
+    private fun generateDockerComposeWithMCP(
+        mcpContext: MCPContext,
+        project: com.intellij.openapi.project.Project,
+        indicator: ProgressIndicator
+    ) {
+        indicator.text = "Generating docker-compose.yml with MCP context..."
+        indicator.fraction = 0.5
+        
+        val bedrockClient = BedrockClient()
+        val mcpContextJson = com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(mcpContext)
+        
+        indicator.text = "Detecting services (database, cache, messaging)..."
+        indicator.fraction = 0.6
+        
+        val compose = bedrockClient.generateDockerCompose(mcpContextJson)
+        bedrockClient.close()
+        
+        saveToFile(project, "docker-compose.yml", compose)
+        
         indicator.text = "docker-compose.yml generated!"
         indicator.fraction = 0.9
     }
@@ -175,27 +253,32 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
     }
 
     private fun generateAllFiles(
+        mcpContext: MCPContext,
         claudeService: ClaudeService,
         projectInfo: String,
         project: com.intellij.openapi.project.Project,
         indicator: ProgressIndicator
     ) {
-        indicator.text = "Generating Dockerfile..."
+        indicator.text = "Generating Dockerfile with MCP context..."
         indicator.fraction = 0.2
-        val dockerfile = claudeService.generateDockerfile(projectInfo)
+
+        // Use BedrockClient for Dockerfile generation
+        val bedrockClient = BedrockClient()
+        val mcpContextJson = com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(mcpContext)
+        val dockerfile = bedrockClient.generateDockerfile(mcpContextJson, usePrefill = true)
+        bedrockClient.close()
+
         saveToFile(project, "Dockerfile", dockerfile)
 
-        indicator.text = "Generating GitHub Actions workflow..."
+        indicator.text = "Generating GitHub Actions workflow with MCP context..."
         indicator.fraction = 0.4
-        val workflow = claudeService.generateGitHubActionsWorkflow(projectInfo)
-        val basePath = project.basePath ?: return
-        val workflowDir = File(basePath, ".github/workflows")
-        workflowDir.mkdirs()
-        File(workflowDir, "ci-cd.yml").writeText(workflow)
+        generateGitHubActionsWorkflow(mcpContext, project, indicator)
 
-        indicator.text = "Generating docker-compose.yml..."
+        indicator.text = "Generating docker-compose.yml with MCP context..."
         indicator.fraction = 0.6
-        val compose = claudeService.generateDockerCompose(projectInfo)
+        val bedrockClient2 = BedrockClient()
+        val compose = bedrockClient2.generateDockerCompose(mcpContextJson)
+        bedrockClient2.close()
         saveToFile(project, "docker-compose.yml", compose)
 
         indicator.text = "Generating .gitignore..."

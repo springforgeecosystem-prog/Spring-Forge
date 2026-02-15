@@ -20,32 +20,49 @@ object YamlValidator {
         val errors = mutableListOf<ValidationError>()
         val warnings = mutableListOf<String>()
 
-        // Fix package root
-        var fixedPackage = model.packageRoot
-        if (!YamlSchema.PACKAGE_REGEX.matches(model.packageRoot)) {
-            fixedPackage = YamlAutoFixer.fixPackageName(model.packageRoot)
-            warnings.add("Package root auto-fixed to: $fixedPackage")
+        // -----------------------
+        // 1. PROJECT VALIDATION
+        // -----------------------
+        val project = model.project
+
+        if (project == null) {
+            warnings.add("Project section missing. Using defaults.")
+        } else {
+            if (project.name.isBlank()) {
+                warnings.add("Project name is empty.")
+            }
+            if (project.language != "java") {
+                warnings.add("Only 'java' is supported. Provided: ${project.language}")
+            }
+            if (project.framework != "springboot") {
+                warnings.add("Only 'springboot' framework supported. Provided: ${project.framework}")
+            }
         }
 
-        // Fix architecture
-        var arch = model.architecture?.lowercase()
-        if (arch != null && !YamlSchema.ARCHITECTURES.contains(arch)) {
-            warnings.add("Invalid architecture '$arch', defaulting to 'layered'")
-            arch = "layered"
-        }
-
+        // -----------------------
+        // 2. ENTITY VALIDATION
+        // -----------------------
         val fixedEntities = model.entities.map { entity ->
             validateEntity(entity, errors, warnings)
         }
+
+        // -----------------------
+        // 3. RELATIONSHIP VALIDATION
+        // -----------------------
+        val fixedRelationships = model.relationships.map { rel ->
+            validateRelationship(rel, errors, warnings)
+        }
+
+        // -----------------------
+        // Return
 
         return if (errors.isNotEmpty()) {
             ValidationResult.Invalid(errors)
         } else {
             ValidationResult.AutoFixed(
                 model.copy(
-                    packageRoot = fixedPackage,
-                    architecture = arch,
-                    entities = fixedEntities
+                    entities = fixedEntities,
+                    relationships = fixedRelationships
                 ),
                 warnings
             )
@@ -58,25 +75,22 @@ object YamlValidator {
         warnings: MutableList<String>
     ): EntitySpec {
 
-        var entityName = e.name
-        if (!YamlSchema.PASCAL_CASE_REGEX.matches(entityName)) {
-            val fixed = YamlAutoFixer.fixEntityName(entityName)
-            warnings.add("Entity '$entityName' auto-fixed to '$fixed'")
-            entityName = fixed
+        // Validate entity name
+        var fixedName = e.name
+        if (!YamlSchema.PASCAL_CASE_REGEX.matches(fixedName)) {
+            val corrected = YamlAutoFixer.fixEntityName(fixedName)
+            warnings.add("Entity '$fixedName' auto-fixed to '$corrected'")
+            fixedName = corrected
         }
 
+        // Validate fields
         val fixedFields = e.fields.map { field ->
-            validateField(entityName, field, errors, warnings)
-        }
-
-        val fixedRelations = e.relationships.map { r ->
-            validateRelationship(r, errors)
+            validateField(fixedName, field, errors, warnings)
         }
 
         return e.copy(
-            name = entityName,
-            fields = fixedFields,
-            relationships = fixedRelations
+            name = fixedName,
+            fields = fixedFields
         )
     }
 
@@ -104,11 +118,20 @@ object YamlValidator {
 
     private fun validateRelationship(
         r: RelationshipSpec,
-        errors: MutableList<ValidationError>
+        errors: MutableList<ValidationError>,
+        warnings: MutableList<String>
     ): RelationshipSpec {
 
         if (!YamlSchema.RELATIONSHIP_TYPES.contains(r.type)) {
             errors.add(ValidationError("Invalid relationship type '${r.type}'"))
+        }
+
+        if (r.from.isBlank()) {
+            errors.add(ValidationError("Relationship 'from' cannot be empty"))
+        }
+
+        if (r.to.isBlank()) {
+            errors.add(ValidationError("Relationship 'to' cannot be empty"))
         }
 
         return r
