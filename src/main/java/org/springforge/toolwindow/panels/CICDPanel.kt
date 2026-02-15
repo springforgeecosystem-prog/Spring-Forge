@@ -1,5 +1,7 @@
 package org.springforge.toolwindow.panels
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -34,11 +36,16 @@ import javax.swing.*
  */
 class CICDPanel(private val project: Project) : JPanel() {
 
+    // JSON mapper for parsing MCP responses
+    private val mapper = jacksonObjectMapper()
+
     // Source selection
     private val localRadio = JBRadioButton("Local Project", true)
     private val githubRadio = JBRadioButton("GitHub Repository")
     private val githubUrlField = JBTextField("https://github.com/spring-projects/spring-petclinic", 30)
-    private val githubBranchField = JBTextField("main", 15)
+    private val githubBranchComboBox = JComboBox<String>(arrayOf("main"))
+    private val fetchBranchesButton = JButton("Fetch Branches")
+    private var availableBranches = listOf<String>()
 
     // Generation options
     private val dockerfileCheckbox = JBCheckBox("Dockerfile", true)
@@ -94,13 +101,28 @@ class CICDPanel(private val project: Project) : JPanel() {
         gbc.gridx = 1
         contentPanel.add(githubUrlField, gbc)
 
-        // GitHub Branch
+        // Fetch Branches Button
         gbc.gridx = 0
         gbc.gridy++
+        gbc.gridwidth = 2
+        val fetchPanel = JPanel()
+        fetchPanel.layout = BoxLayout(fetchPanel, BoxLayout.X_AXIS)
+        fetchBranchesButton.isEnabled = false
+        fetchPanel.add(fetchBranchesButton)
+        fetchPanel.add(Box.createHorizontalGlue())
+        contentPanel.add(fetchPanel, gbc)
+
+        // GitHub Branch Dropdown
+        gbc.gridx = 0
+        gbc.gridy++
+        gbc.gridwidth = 1
         contentPanel.add(JBLabel("Branch:"), gbc)
 
         gbc.gridx = 1
-        contentPanel.add(githubBranchField, gbc)
+        githubBranchComboBox.isEditable = false
+        githubBranchComboBox.maximumRowCount = 10 // Show 10 branches at once
+        githubBranchComboBox.isEnabled = false
+        contentPanel.add(githubBranchComboBox, gbc)
 
         // Generation options section
         gbc.gridx = 0
@@ -176,16 +198,24 @@ class CICDPanel(private val project: Project) : JPanel() {
         // Enable/disable GitHub fields
         localRadio.addActionListener {
             githubUrlField.isEnabled = false
-            githubBranchField.isEnabled = false
+            fetchBranchesButton.isEnabled = false
+            githubBranchComboBox.isEnabled = false
         }
 
         githubRadio.addActionListener {
             githubUrlField.isEnabled = true
-            githubBranchField.isEnabled = true
+            fetchBranchesButton.isEnabled = true
+            githubBranchComboBox.isEnabled = true
         }
 
         githubUrlField.isEnabled = false
-        githubBranchField.isEnabled = false
+        fetchBranchesButton.isEnabled = false
+        githubBranchComboBox.isEnabled = false
+
+        // Fetch branches button
+        fetchBranchesButton.addActionListener {
+            fetchBranchesFromGitHub()
+        }
 
         // Generate button
         generateButton.addActionListener {
@@ -214,7 +244,7 @@ class CICDPanel(private val project: Project) : JPanel() {
 
         val isLocal = localRadio.isSelected
         val githubUrl = githubUrlField.text.trim()
-        val githubBranch = githubBranchField.text.trim()
+        val githubBranch = githubBranchComboBox.selectedItem as? String ?: "main"
 
         resultsArea.text = "Starting generation...\n"
 
@@ -363,4 +393,121 @@ class CICDPanel(private val project: Project) : JPanel() {
             resultsArea.caretPosition = resultsArea.document.length
         }
     }
+
+    private fun fetchBranchesFromGitHub() {
+        val githubUrl = githubUrlField.text.trim()
+
+        if (githubUrl.isEmpty() || !githubUrl.contains("github.com")) {
+            Messages.showWarningDialog(
+                project,
+                "Please enter a valid GitHub repository URL.",
+                "Invalid URL"
+            )
+            return
+        }
+
+        appendResults("🔍 Fetching branches from $githubUrl...\n")
+
+        ProgressManager.getInstance().run(object : Task.Backgroundable(
+            project,
+            "Fetching Branches",
+            true
+        ) {
+            override fun run(indicator: ProgressIndicator) {
+                try {
+                    indicator.text = "Connecting to GitHub MCP Server..."
+                    indicator.fraction = 0.2
+
+                    val connector = GitHubMCPServerConnector()
+                    
+                    // Parse owner and repo from URL
+                    val cleaned = githubUrl
+                        .removePrefix("https://")
+                        .removePrefix("http://")
+                        .removePrefix("www.")
+                        .removePrefix("github.com/")
+                        .removeSuffix(".git")
+                        .removeSuffix("/")
+                    
+                    val parts = cleaned.split("/")
+                    if (parts.size < 2) {
+                        throw IllegalArgumentException("Invalid GitHub URL format. Expected: owner/repo")
+                    }
+
+                    val owner = parts[0]
+                    val repo = parts[1]
+
+                    indicator.text = "Fetching branches from $owner/$repo..."
+                    indicator.fraction = 0.5
+
+                    // Connect to GitHub MCP Server
+                    runBlocking {
+                        connector.connect()
+                    }
+
+                    // Call GitHub MCP Server to list branches
+                    val result = runBlocking {
+                        connector.callTool(
+                            toolName = "list_branches",
+                            arguments = mapOf(
+                                "owner" to owner,
+                                "repo" to repo
+                            )
+                        )
+                    }
+
+                    // Parse MCP response format: {"content": [{"type":"text","text":"[{...}]"}]}
+                    val content = result["content"] as? List<*>
+                    val textItem = content?.firstOrNull() as? Map<*, *>
+                    val jsonText = textItem?.get("text") as? String
+                        ?: throw IllegalStateException("Invalid MCP response format")
+
+                    // Parse JSON array of branches
+                    val branches = mapper.readValue<List<Map<String, Any>>>(jsonText)
+                    val branchNames = branches.mapNotNull { it["name"] as? String }
+
+                    if (branchNames.isEmpty()) {
+                        throw IllegalStateException("No branches found in repository")
+                    }
+
+                    availableBranches = branchNames
+                    indicator.fraction = 1.0
+
+                    // Update UI on EDT
+                    ApplicationManager.getApplication().invokeLater {
+                        githubBranchComboBox.removeAllItems()
+                        branchNames.forEach { branch ->
+                            githubBranchComboBox.addItem(branch)
+                        }
+
+                        // Select "main" or "master" if available
+                        val defaultBranch = branchNames.find { it == "main" || it == "master" }
+                        if (defaultBranch != null) {
+                            githubBranchComboBox.selectedItem = defaultBranch
+                        }
+
+                        appendResults("✅ Found ${branchNames.size} branches: ${branchNames.joinToString(", ")}\n")
+                        
+                        Messages.showInfoMessage(
+                            project,
+                            "Found ${branchNames.size} branches:\n${branchNames.take(10).joinToString(", ")}${if (branchNames.size > 10) "..." else ""}",
+                            "Branches Fetched"
+                        )
+                    }
+
+                } catch (ex: Exception) {
+                    ApplicationManager.getApplication().invokeLater {
+                        appendResults("❌ Failed to fetch branches: ${ex.message}\n")
+                        Messages.showErrorDialog(
+                            project,
+                            "Failed to fetch branches:\n${ex.message}",
+                            "Fetch Error"
+                        )
+                    }
+                    ex.printStackTrace()
+                }
+            }
+        })
+    }
 }
+

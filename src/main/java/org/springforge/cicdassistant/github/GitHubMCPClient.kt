@@ -56,12 +56,22 @@ class GitHubMCPClient(
         connector.connect()
 
         try {
-            // Step 1: Detect default branch
+            // Step 1: Detect default branch (only use if user didn't specify one)
             println("[1/7] Detecting default branch...")
             val defaultBranch = detectDefaultBranch(owner, repo)
-            this@GitHubMCPClient.branch = defaultBranch // Update branch to use detected default
+            
+            // Use user's specified branch, or fall back to detected default
+            val effectiveBranch = if (branchName.isNotBlank() && branchName != "main") {
+                println("✓ Using user-specified branch: $branchName")
+                branchName
+            } else {
+                println("✓ Using detected default branch: $defaultBranch")
+                defaultBranch
+            }
+            
+            this@GitHubMCPClient.branch = effectiveBranch
             println("✓ Repository: $repo")
-            println("✓ Default branch: $defaultBranch")
+            println("✓ Branch: $effectiveBranch")
 
             // Step 2: Detect build tool (Maven or Gradle) and architecture type
             println("[2/7] Detecting build tool and architecture type...")
@@ -291,19 +301,23 @@ class GitHubMCPClient(
             "Gradle" -> {
                 try {
                     // Try Kotlin DSL first
+                    println("  📄 Checking build.gradle.kts on branch: $branch...")
                     val buildContent = try {
                         getFileContents(owner, repo, "build.gradle.kts")
                     } catch (e: Exception) {
                         // Fall back to Groovy DSL
+                        println("  📄 build.gradle.kts not found, trying build.gradle...")
                         getFileContents(owner, repo, "build.gradle")
                     }
+
+                    println("  🔍 Analyzing build file (${buildContent.length} chars)...")
 
                     // Check for IntelliJ Platform Plugin
                     val hasIntellijPlugin = buildContent.contains("org.jetbrains.intellij") ||
                             buildContent.contains("org.jetbrains.kotlin.jvm") && buildContent.contains("intellij {")
 
                     if (hasIntellijPlugin) {
-                        println("  ✓ Detected IntelliJ IDEA Plugin project")
+                        println("  ✅ Detected IntelliJ IDEA Plugin project")
                         return "INTELLIJ_PLUGIN"
                     }
 
@@ -311,15 +325,16 @@ class GitHubMCPClient(
                     val hasSpringBoot = buildContent.contains("org.springframework.boot")
 
                     if (hasSpringBoot) {
-                        println("  ✓ Detected Spring Boot project")
+                        println("  ✅ Detected Spring Boot project")
                         return "SPRING_BOOT"
                     }
 
-                    println("  ⚠ Warning: Couldn't determine architecture type, defaulting to SPRING_BOOT")
+                    println("  ⚠️ Warning: Couldn't determine architecture type, defaulting to SPRING_BOOT")
+                    println("  💡 Build file preview: ${buildContent.take(200)}...")
                     "SPRING_BOOT"
 
                 } catch (e: Exception) {
-                    println("  ⚠ Warning: Failed to detect architecture type: ${e.message}")
+                    println("  ❌ Failed to detect architecture type: ${e.message}")
                     "SPRING_BOOT"
                 }
             }

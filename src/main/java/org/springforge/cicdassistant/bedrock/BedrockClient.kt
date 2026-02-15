@@ -169,16 +169,20 @@ class BedrockClient {
             val metadata = contextMap["metadata"] as? Map<*, *>
             
             // Debug: print all metadata keys
-            println("[BedrockClient] Metadata keys: ${metadata?.keys}")
+            println("[BedrockClient] 📊 Metadata keys: ${metadata?.keys}")
             
             // Try both snake_case and camelCase (Jackson might serialize either way)
             val archType = (metadata?.get("architecture_type") ?: metadata?.get("architectureType")) as? String
             
-            println("[BedrockClient] Extracted architecture type: ${archType ?: "null"}")
+            println("[BedrockClient] 🏗️ Extracted architecture type: ${archType ?: "null (defaulting to SPRING_BOOT)"}")
             
             if (archType == null) {
-                println("[BedrockClient] ⚠ Architecture type is null! MCP JSON preview:")
+                println("[BedrockClient] ⚠️ Architecture type is null! MCP JSON preview:")
                 println(mcpContext.take(500))
+            } else if (archType == "INTELLIJ_PLUGIN") {
+                println("[BedrockClient] ✅ Confirmed: Generating for IntelliJ Plugin project")
+            } else if (archType == "SPRING_BOOT") {
+                println("[BedrockClient] ✅ Confirmed: Generating for Spring Boot project")
             }
             
             archType ?: "SPRING_BOOT"
@@ -187,6 +191,57 @@ class BedrockClient {
             e.printStackTrace()
             "SPRING_BOOT" // Default fallback
         }
+    }
+    
+    /**
+     * Executes a Bedrock API call with retry logic and exponential backoff.
+     * Handles rate limiting (429) errors by waiting and retrying.
+     *
+     * @param maxRetries Maximum number of retry attempts (default: 3)
+     * @param initialDelayMs Initial delay before first retry in milliseconds (default: 2000ms)
+     * @param maxDelayMs Maximum delay between retries in milliseconds (default: 30000ms)
+     * @param block The API call to execute
+     * @return The result of the API call
+     * @throws BedrockException if all retries fail
+     */
+    private fun <T> invokeWithRetry(
+        maxRetries: Int = 3,
+        initialDelayMs: Long = 2000,
+        maxDelayMs: Long = 30000,
+        block: () -> T
+    ): T {
+        var lastException: Exception? = null
+        var currentDelay = initialDelayMs
+        
+        repeat(maxRetries + 1) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                lastException = e
+                
+                // Check if it's a rate limiting error
+                val isRateLimitError = e.message?.contains("429") == true ||
+                                      e.message?.contains("Too many requests") == true ||
+                                      e.message?.contains("ThrottlingException") == true
+                
+                if (isRateLimitError && attempt < maxRetries) {
+                    println("[BedrockClient] ⏳ Rate limit hit (attempt ${attempt + 1}/${maxRetries + 1}). Waiting ${currentDelay / 1000}s before retry...")
+                    Thread.sleep(currentDelay)
+                    
+                    // Exponential backoff with cap
+                    currentDelay = (currentDelay * 2).coerceAtMost(maxDelayMs)
+                } else if (attempt < maxRetries) {
+                    // For other errors, use shorter delay
+                    println("[BedrockClient] ⚠️ Request failed (attempt ${attempt + 1}/${maxRetries + 1}): ${e.message}")
+                    Thread.sleep(1000)
+                } else {
+                    // Last attempt failed
+                    throw BedrockException("Failed after ${maxRetries + 1} attempts: ${e.message}", e)
+                }
+            }
+        }
+        
+        throw BedrockException("Failed to invoke Bedrock after retries", lastException)
     }
     
     /**
@@ -199,52 +254,54 @@ class BedrockClient {
      * @throws BedrockException if the API call fails or response is invalid
      */
     private fun invokeModelWithPrefill(prompt: String, prefill: String): String {
-        try {
-            // Build the request payload with prefill (assistant message)
-            val requestBody = mapOf(
-                "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
-                "max_tokens" to EnvironmentConfig.Claude.maxTokens,
-                "messages" to listOf(
-                    mapOf(
-                        "role" to "user",
-                        "content" to prompt
+        return invokeWithRetry {
+            try {
+                // Build the request payload with prefill (assistant message)
+                val requestBody = mapOf(
+                    "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
+                    "max_tokens" to EnvironmentConfig.Claude.maxTokens,
+                    "messages" to listOf(
+                        mapOf(
+                            "role" to "user",
+                            "content" to prompt
+                        ),
+                        mapOf(
+                            "role" to "assistant",
+                            "content" to prefill  // Forces Claude to continue from here
+                        )
                     ),
-                    mapOf(
-                        "role" to "assistant",
-                        "content" to prefill  // Forces Claude to continue from here
-                    )
-                ),
-                "temperature" to 0.0,  // Deterministic for prefill
-                "top_p" to 0.9
-            )
-            
-            val requestBodyJson = objectMapper.writeValueAsString(requestBody)
-            
-            val invokeRequest = InvokeModelRequest.builder()
-                .modelId(EnvironmentConfig.Claude.modelId)
-                .body(SdkBytes.fromUtf8String(requestBodyJson))
-                .contentType("application/json")
-                .accept("application/json")
-                .build()
-            
-            val response = bedrockClient.invokeModel(invokeRequest)
-            val responseBody = response.body().asUtf8String()
-            val responseMap: Map<String, Any> = objectMapper.readValue(responseBody)
-            
-            val content = responseMap["content"] as? List<*>
-                ?: throw BedrockException("Invalid response format: missing 'content' field")
-            
-            val firstContent = content.firstOrNull() as? Map<*, *>
-                ?: throw BedrockException("Invalid response format: empty content array")
-            
-            val generatedText = firstContent["text"] as? String
-                ?: throw BedrockException("Invalid response format: missing 'text' field")
-            
-            // Return prefill + Claude's continuation
-            return prefill + generatedText.trim()
-            
-        } catch (e: Exception) {
-            throw BedrockException("Failed to invoke Bedrock model with prefill: ${e.message}", e)
+                    "temperature" to 0.0,  // Deterministic for prefill
+                    "top_p" to 0.9
+                )
+                
+                val requestBodyJson = objectMapper.writeValueAsString(requestBody)
+                
+                val invokeRequest = InvokeModelRequest.builder()
+                    .modelId(EnvironmentConfig.Claude.modelId)
+                    .body(SdkBytes.fromUtf8String(requestBodyJson))
+                    .contentType("application/json")
+                    .accept("application/json")
+                    .build()
+                
+                val response = bedrockClient.invokeModel(invokeRequest)
+                val responseBody = response.body().asUtf8String()
+                val responseMap: Map<String, Any> = objectMapper.readValue(responseBody)
+                
+                val content = responseMap["content"] as? List<*>
+                    ?: throw BedrockException("Invalid response format: missing 'content' field")
+                
+                val firstContent = content.firstOrNull() as? Map<*, *>
+                    ?: throw BedrockException("Invalid response format: empty content array")
+                
+                val generatedText = firstContent["text"] as? String
+                    ?: throw BedrockException("Invalid response format: missing 'text' field")
+                
+                // Return prefill + Claude's continuation
+                prefill + generatedText.trim()
+                
+            } catch (e: Exception) {
+                throw BedrockException("Failed to invoke Bedrock model with prefill: ${e.message}", e)
+            }
         }
     }
     
@@ -256,53 +313,55 @@ class BedrockClient {
      * @throws BedrockException if the API call fails or response is invalid
      */
     private fun invokeModel(prompt: String): String {
-        try {
-            // Build the request payload for Claude (Anthropic Messages API format)
-            val requestBody = mapOf(
-                "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
-                "max_tokens" to EnvironmentConfig.Claude.maxTokens,
-                "messages" to listOf(
-                    mapOf(
-                        "role" to "user",
-                        "content" to prompt
-                    )
-                ),
-                "temperature" to 0.7,
-                "top_p" to 0.9
-            )
-            
-            val requestBodyJson = objectMapper.writeValueAsString(requestBody)
-            
-            // Create the Bedrock invoke model request
-            val invokeRequest = InvokeModelRequest.builder()
-                .modelId(EnvironmentConfig.Claude.modelId)
-                .body(SdkBytes.fromUtf8String(requestBodyJson))
-                .contentType("application/json")
-                .accept("application/json")
-                .build()
-            
-            // Invoke the model
-            val response: InvokeModelResponse = bedrockClient.invokeModel(invokeRequest)
-            
-            // Parse the response
-            val responseBody = response.body().asUtf8String()
-            val responseMap: Map<String, Any> = objectMapper.readValue(responseBody)
-            
-            // Extract the generated text from Claude's response
-            // Response format: {"content": [{"text": "..."}], "stop_reason": "end_turn"}
-            val content = responseMap["content"] as? List<*>
-                ?: throw BedrockException("Invalid response format: missing 'content' field")
-            
-            val firstContent = content.firstOrNull() as? Map<*, *>
-                ?: throw BedrockException("Invalid response format: empty content array")
-            
-            val generatedText = firstContent["text"] as? String
-                ?: throw BedrockException("Invalid response format: missing 'text' field")
-            
-            return generatedText.trim()
-            
-        } catch (e: Exception) {
-            throw BedrockException("Failed to invoke Bedrock model: ${e.message}", e)
+        return invokeWithRetry {
+            try {
+                // Build the request payload for Claude (Anthropic Messages API format)
+                val requestBody = mapOf(
+                    "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
+                    "max_tokens" to EnvironmentConfig.Claude.maxTokens,
+                    "messages" to listOf(
+                        mapOf(
+                            "role" to "user",
+                            "content" to prompt
+                        )
+                    ),
+                    "temperature" to 0.7,
+                    "top_p" to 0.9
+                )
+                
+                val requestBodyJson = objectMapper.writeValueAsString(requestBody)
+                
+                // Create the Bedrock invoke model request
+                val invokeRequest = InvokeModelRequest.builder()
+                    .modelId(EnvironmentConfig.Claude.modelId)
+                    .body(SdkBytes.fromUtf8String(requestBodyJson))
+                    .contentType("application/json")
+                    .accept("application/json")
+                    .build()
+                
+                // Invoke the model
+                val response: InvokeModelResponse = bedrockClient.invokeModel(invokeRequest)
+                
+                // Parse the response
+                val responseBody = response.body().asUtf8String()
+                val responseMap: Map<String, Any> = objectMapper.readValue(responseBody)
+                
+                // Extract the generated text from Claude's response
+                // Response format: {"content": [{"text": "..."}], "stop_reason": "end_turn"}
+                val content = responseMap["content"] as? List<*>
+                    ?: throw BedrockException("Invalid response format: missing 'content' field")
+                
+                val firstContent = content.firstOrNull() as? Map<*, *>
+                    ?: throw BedrockException("Invalid response format: empty content array")
+                
+                val generatedText = firstContent["text"] as? String
+                    ?: throw BedrockException("Invalid response format: missing 'text' field")
+                
+                generatedText.trim()
+                
+            } catch (e: Exception) {
+                throw BedrockException("Failed to invoke Bedrock model: ${e.message}", e)
+            }
         }
     }
     
