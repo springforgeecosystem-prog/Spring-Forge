@@ -35,7 +35,7 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
         val deps = dlg.getDependencies()
         val javaVersion = dlg.getJavaVersion()
         val buildTool = dlg.getBuildTool()
-        // Note: bootVersion is removed from here
+        val bootVersion = dlg.getBootVersion()
 
         // STEP 2 — DIRECTORY CHOOSER
         val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
@@ -44,8 +44,8 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
         val selectedFolder = FileChooser.chooseFile(descriptor, project, null) ?: return
         val targetDir = File(selectedFolder.path, artifactId)
 
-        // Build Params (No bootVersion passed)
-        val params = buildParams(artifactId, packageRoot, deps, javaVersion, buildTool)
+        // Build Params
+        val params = buildParams(artifactId, packageRoot, deps, javaVersion, buildTool, bootVersion)
 
         // START BACKGROUND TASK
         object : Task.Backgroundable(project, "Creating Spring Boot Project...", false) {
@@ -82,6 +82,11 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
 
                     tempUnzipDir.deleteRecursively()
 
+                    // Post-process: Lombok version fix + annotation processing
+                    indicator.text = "Fixing build configuration..."
+                    fixLombokAnnotationProcessor(targetDir, buildTool)
+                    enableAnnotationProcessing(targetDir)
+
                     indicator.text = "Applying Architecture Template..."
                     TemplateGenerator.generate(targetDir, packageRoot, arch)
 
@@ -99,8 +104,10 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
                             Notifications.Bus.notify(
                                 Notification(
                                     "SpringForge",
-                                    "Project Opened",
-                                    "Spring Boot project '$artifactId' created.",
+                                    "Project Created",
+                                    "Spring Boot project '$artifactId' created successfully!\n" +
+                                    "Annotation processing has been auto-enabled.\n" +
+                                    "Tip: If IDE still shows errors, do Maven → Reload All Maven Projects.",
                                     NotificationType.INFORMATION
                                 ),
                                 project
@@ -134,7 +141,8 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
         packageRoot: String,
         deps: List<String>,
         javaVersion: String,
-        buildTool: String
+        buildTool: String,
+        bootVersion: String
     ): String {
 
         val cleanedArtifact = artifactId.replace("[^a-zA-Z0-9_-]".toRegex(), "")
@@ -144,10 +152,7 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
         sb.append("type=").append(buildTool)
         sb.append("&language=java")
         sb.append("&javaVersion=").append(javaVersion)
-
-        // REMOVED: sb.append("&bootVersion=...")
-        // By omitting this, the server automatically selects the latest stable version.
-
+        sb.append("&bootVersion=").append(bootVersion)
         sb.append("&baseDir=").append(cleanedArtifact)
         sb.append("&groupId=").append(groupId)
         sb.append("&artifactId=").append(cleanedArtifact)
@@ -161,5 +166,68 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
         }
 
         return sb.toString()
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  POM.XML POST-PROCESSING
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Ensures the Lombok annotation processor in pom.xml has an explicit version.
+     *
+     * Spring Initializr generates the annotation processor path without a version:
+     *   <path><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></path>
+     *
+     * This can cause issues because Maven's maven-compiler-plugin may not resolve
+     * the version from the Spring Boot BOM for annotation processor paths.
+     * We fix this by adding <version>${lombok.version}</version> to the path.
+     */
+    /**
+     * Creates .idea/compiler.xml with annotation processing enabled.
+     * This eliminates the need for users to manually enable it in IntelliJ settings.
+     * Without this, Lombok-generated methods (getters, setters, builders, constructors)
+     * won't be recognized by IntelliJ's code analyzer, causing false errors.
+     */
+    private fun enableAnnotationProcessing(projectDir: File) {
+        val ideaDir = File(projectDir, ".idea")
+        if (!ideaDir.exists()) ideaDir.mkdirs()
+
+        val compilerXml = File(ideaDir, "compiler.xml")
+        compilerXml.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile default="true" name="Default" enabled="true">
+        <processorPath useClasspath="true" />
+      </profile>
+    </annotationProcessing>
+  </component>
+</project>
+""".trimStart()
+        )
+    }
+
+    private fun fixLombokAnnotationProcessor(projectDir: File, buildTool: String) {
+        // Only applies to Maven projects
+        if (!buildTool.contains("maven")) return
+
+        val pomFile = File(projectDir, "pom.xml")
+        if (!pomFile.exists()) return
+
+        var content = pomFile.readText()
+
+        // Pattern: <path> with lombok artifactId but NO <version> tag
+        // We need to add <version>${lombok.version}</version> after the <artifactId>lombok</artifactId>
+        val lombokPathWithoutVersion = Regex(
+            """(<annotationProcessorPaths>\s*\n\s*<path>\s*\n\s*<groupId>org\.projectlombok</groupId>\s*\n\s*<artifactId>lombok</artifactId>)\s*\n(\s*</path>)"""
+        )
+
+        if (lombokPathWithoutVersion.containsMatchIn(content)) {
+            content = lombokPathWithoutVersion.replace(content) { match ->
+                "${match.groupValues[1]}\n\t\t\t\t\t\t\t<version>\${lombok.version}</version>\n${match.groupValues[2]}"
+            }
+            pomFile.writeText(content)
+        }
     }
 }

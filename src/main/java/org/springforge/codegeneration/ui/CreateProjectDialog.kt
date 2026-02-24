@@ -24,8 +24,7 @@ class CreateProjectDialog : DialogWrapper(true) {
     private val archCombo = ComboBox(arrayOf("Layered", "MVC", "Clean"))
     private val javaVersionCombo = ComboBox(arrayOf("17", "21"))
     private val buildToolCombo = ComboBox(arrayOf("Maven", "Gradle - Groovy", "Gradle - Kotlin"))
-
-    // REMOVED: private val bootVersionCombo...
+    private val bootVersionCombo = ComboBox(arrayOf("3.5.10 (Stable)", "4.0.2 (Latest)"))
 
     // Dependency Selector
     private val depSelector = DependencySelector()
@@ -62,8 +61,13 @@ class CreateProjectDialog : DialogWrapper(true) {
         formPanel.add(JLabel("Build Tool:"), c); c.gridx = 1; c.weightx = 0.7
         formPanel.add(buildToolCombo, c)
 
-        // Row 3: Java Version (Boot version removed)
+        // Row 3: Spring Boot Version
         c.gridx = 0; c.gridy = 4; c.weightx = 0.3
+        formPanel.add(JLabel("Boot Version:"), c); c.gridx = 1; c.weightx = 0.7
+        formPanel.add(bootVersionCombo, c)
+
+        // Row 4: Java Version
+        c.gridx = 0; c.gridy = 5; c.weightx = 0.3
         formPanel.add(JLabel("Java Version:"), c); c.gridx = 1; c.weightx = 0.7
         formPanel.add(javaVersionCombo, c)
 
@@ -85,7 +89,11 @@ class CreateProjectDialog : DialogWrapper(true) {
     fun getPackageRoot() = packageRootField.text.trim()
     fun getJavaVersion() = javaVersionCombo.selectedItem.toString()
 
-    // REMOVED: fun getBootVersion()
+    fun getBootVersion(): String {
+        val selected = bootVersionCombo.selectedItem.toString()
+        // Extract version number from display string like "3.5.10 (Stable)"
+        return selected.substringBefore(" ").trim()
+    }
 
     fun getBuildTool(): String {
         return when (buildToolCombo.selectedItem.toString()) {
