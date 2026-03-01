@@ -19,6 +19,9 @@ import org.springforge.cicdassistant.bedrock.BedrockClient
 import org.springforge.cicdassistant.github.GitHubMCPClient
 import org.springforge.cicdassistant.github.mcp.GitHubMCPServerConnector
 import org.springforge.cicdassistant.services.ProjectAnalyzerService
+import org.springforge.cicdassistant.explainability.ExplainabilityResult
+import org.springforge.cicdassistant.explainability.ExplainabilityService
+import org.springforge.cicdassistant.explainability.ui.ExplainabilityPanel
 import org.springforge.cicdassistant.validation.ValidationResult
 import org.springforge.cicdassistant.validation.ValidationService
 import org.springforge.cicdassistant.validation.ui.ValidationResultsPanel
@@ -56,6 +59,8 @@ class CICDPanel(private val project: Project) : JPanel() {
     private val generateButton         = JButton("Generate CI/CD Files")
     private val validateButton         = JButton("Validate Generated")
     private val validateExistingButton = JButton("Validate Existing")
+    private val explainButton          = JButton("Explain Generated")
+    private val explainFileButton      = JButton("Explain File...")
     private val clearButton            = JButton("Clear")
 
     // ── Output pane ───────────────────────────────────────────────────────────
@@ -383,9 +388,28 @@ class CICDPanel(private val project: Project) : JPanel() {
         secondRow.add(validateExistingButton)
         secondRow.add(clearButton)
 
+        // Explain row: [Explain Generated] [Explain File...]
+        val explainRow = JPanel(GridLayout(1, 2, 6, 0)).apply {
+            isOpaque   = false
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+        for (btn in listOf(explainButton, explainFileButton)) {
+            btn.font           = JBUI.Fonts.label(11f)
+            btn.isFocusPainted = false
+            btn.border         = JBUI.Borders.empty(5, 10)
+            btn.cursor         = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        }
+        explainButton.isEnabled     = false   // enabled only after generation
+        explainFileButton.isEnabled = true    // always enabled
+
+        explainRow.add(explainButton)
+        explainRow.add(explainFileButton)
+
         panel.add(generateButton)
         panel.add(Box.createVerticalStrut(8))
         panel.add(secondRow)
+        panel.add(Box.createVerticalStrut(6))
+        panel.add(explainRow)
         return panel
     }
 
@@ -448,6 +472,8 @@ class CICDPanel(private val project: Project) : JPanel() {
         generateButton.addActionListener         { generateCICDFiles() }
         validateButton.addActionListener         { validateGeneratedFiles() }
         validateExistingButton.addActionListener { validateExistingFilesInProject() }
+        explainButton.addActionListener          { explainGeneratedFiles() }
+        explainFileButton.addActionListener      { explainExistingFile() }
         clearButton.addActionListener            { clearOutput() }
     }
 
@@ -473,6 +499,7 @@ class CICDPanel(private val project: Project) : JPanel() {
         generatedDockerCompose  = null
         generatedGitHubWorkflow = null
         validateButton.isEnabled = false
+        explainButton.isEnabled  = false
         appendLog("Output cleared. Ready to generate CI/CD files.\n", "dim")
     }
 
@@ -586,10 +613,11 @@ class CICDPanel(private val project: Project) : JPanel() {
 
                     appendLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", "dim")
                     appendResults("🎉 All selected CI/CD files generated successfully!\n")
-                    appendLog("Files saved to project root.  Click 'Validate Generated' to check for issues.\n", "info")
+                    appendLog("Files saved to project root.  Use Validate or Explain to analyze.\n", "info")
 
                     ApplicationManager.getApplication().invokeLater {
                         validateButton.isEnabled = true
+                        explainButton.isEnabled  = true
                         Messages.showInfoMessage(
                             project,
                             "CI/CD files generated successfully!\n\nCheck the Output tab for details.",
@@ -706,6 +734,115 @@ class CICDPanel(private val project: Project) : JPanel() {
                 }
             }
         })
+    }
+
+    private fun explainGeneratedFiles() {
+        if (generatedDockerfile == null && generatedDockerCompose == null && generatedGitHubWorkflow == null) {
+            Messages.showWarningDialog(project, "No generated files to explain. Generate files first.", "No Files")
+            return
+        }
+
+        appendLog("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", "dim")
+        appendResults("💡 Analyzing generated files with AI...\n")
+
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Explaining CI/CD Artifacts", true) {
+            override fun run(indicator: ProgressIndicator) {
+                try {
+                    indicator.text     = "Sending artifacts to Claude AI..."
+                    indicator.fraction = 0.1
+
+                    val result = ExplainabilityService.getInstance(project).explainGeneratedArtifacts(
+                        dockerfile         = generatedDockerfile,
+                        dockerCompose      = generatedDockerCompose,
+                        githubWorkflow     = generatedGitHubWorkflow,
+                        dockerfilePath     = dockerfilePath,
+                        dockerComposePath  = dockerComposePath,
+                        githubWorkflowPath = githubWorkflowPath
+                    )
+                    indicator.fraction = 0.95
+
+                    ApplicationManager.getApplication().invokeLater {
+                        appendLog("${result.getSummary()} — opening explainability window.\n", "info")
+                        showExplainabilityDialog(result)
+                    }
+                    indicator.fraction = 1.0
+                } catch (ex: Exception) {
+                    appendResults("❌ Explanation error: ${ex.message}\n")
+                    ApplicationManager.getApplication().invokeLater {
+                        Messages.showErrorDialog(project, "Failed to explain files:\n${ex.message}", "SpringForge — Error")
+                    }
+                }
+            }
+        })
+    }
+
+    private fun explainExistingFile() {
+        val fc = JFileChooser().apply {
+            currentDirectory        = File(project.basePath ?: System.getProperty("user.home"))
+            dialogTitle             = "Select CI/CD File to Explain"
+            isMultiSelectionEnabled = true
+            fileFilter = object : javax.swing.filechooser.FileFilter() {
+                override fun accept(f: File): Boolean =
+                    f.isDirectory ||
+                    f.name == "Dockerfile" ||
+                    f.name.endsWith(".yml") ||
+                    f.name.endsWith(".yaml")
+                override fun getDescription() = "CI/CD Files (Dockerfile, *.yml, *.yaml)"
+            }
+        }
+
+        if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
+
+        val selectedFiles = fc.selectedFiles
+        if (selectedFiles.isEmpty()) return
+
+        val files = selectedFiles.associate { it.absolutePath to it.readText() }
+
+        appendLog("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", "dim")
+        appendResults("💡 Analyzing ${files.size} file(s) with AI...\n")
+        files.keys.forEach { appendLog("  · ${File(it).name}\n", "dim") }
+
+        ProgressManager.getInstance().run(
+            object : Task.Backgroundable(project, "Explaining CI/CD Files", true) {
+                override fun run(indicator: ProgressIndicator) {
+                    try {
+                        indicator.text     = "Sending files to Claude AI..."
+                        indicator.fraction = 0.1
+
+                        val result = ExplainabilityService.getInstance(project).explainFiles(files)
+                        indicator.fraction = 0.95
+
+                        ApplicationManager.getApplication().invokeLater {
+                            appendLog("${result.getSummary()} — opening explainability window.\n", "info")
+                            showExplainabilityDialog(result)
+                        }
+                        indicator.fraction = 1.0
+                    } catch (ex: Exception) {
+                        appendResults("❌ Explanation error: ${ex.message}\n")
+                        ApplicationManager.getApplication().invokeLater {
+                            Messages.showErrorDialog(
+                                project, "Failed to explain files:\n${ex.message}", "SpringForge — Error"
+                            )
+                        }
+                    }
+                }
+            })
+    }
+
+    private fun showExplainabilityDialog(result: ExplainabilityResult) {
+        val owner  = SwingUtilities.getWindowAncestor(this)
+        val dialog = JDialog(owner, "CI/CD Explainability — SpringForge", Dialog.ModalityType.MODELESS)
+        dialog.defaultCloseOperation = JDialog.DISPOSE_ON_CLOSE
+
+        val panel = ExplainabilityPanel(project)
+        panel.displayResults(result)
+        panel.setDismissAction { dialog.dispose() }
+
+        dialog.contentPane = panel
+        dialog.preferredSize = Dimension(900, 620)
+        dialog.pack()
+        dialog.setLocationRelativeTo(this)
+        dialog.isVisible = true
     }
 
     private fun fetchBranchesFromGitHub() {

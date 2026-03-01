@@ -1538,6 +1538,48 @@ Do NOT include:
     }
     
     /**
+     * Invokes Claude with a structured explanation prompt for the Explainability Engine.
+     * Uses lower temperature (0.3) for more deterministic JSON output and higher
+     * max_tokens (8192) to accommodate large workflow file explanations.
+     *
+     * @param prompt Full prompt string including artifact content + JSON schema instructions
+     * @return Raw response string (expected to be JSON from Claude)
+     */
+    fun explainArtifact(prompt: String): String {
+        return invokeWithRetry {
+            try {
+                val requestBody = mapOf(
+                    "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
+                    "max_tokens"        to 8192,
+                    "messages"          to listOf(mapOf("role" to "user", "content" to prompt)),
+                    "temperature"       to 0.3,
+                    "top_p"             to 0.9
+                )
+                val requestBodyJson = objectMapper.writeValueAsString(requestBody)
+                val invokeRequest = InvokeModelRequest.builder()
+                    .modelId(EnvironmentConfig.Claude.modelId)
+                    .body(SdkBytes.fromUtf8String(requestBodyJson))
+                    .contentType("application/json")
+                    .accept("application/json")
+                    .build()
+
+                val response: InvokeModelResponse = bedrockClient.invokeModel(invokeRequest)
+                val responseBody = response.body().asUtf8String()
+                val responseMap: Map<String, Any> = objectMapper.readValue(responseBody)
+
+                val content = responseMap["content"] as? List<*>
+                    ?: throw BedrockException("Invalid response: missing 'content'")
+                val firstContent = content.firstOrNull() as? Map<*, *>
+                    ?: throw BedrockException("Invalid response: empty content array")
+                (firstContent["text"] as? String)?.trim()
+                    ?: throw BedrockException("Invalid response: missing 'text' field")
+            } catch (e: Exception) {
+                throw BedrockException("Explanation call failed: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
      * Closes the Bedrock client and releases resources.
      */
     fun close() {
