@@ -1,4 +1,4 @@
-// AnalyzeQualityAction.kt - FIXED VERSION
+// AnalyzeQualityAction.kt
 package org.springforge.qualityassurance.actions
 
 import com.intellij.notification.NotificationGroupManager
@@ -9,7 +9,9 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.project.Project
 import org.springforge.qualityassurance.analysis.PsiFeatureExtractor
+import org.springforge.qualityassurance.model.FileFeatureModel
 import org.springforge.qualityassurance.network.MLServiceClient
 import org.springforge.qualityassurance.toolwindow.QualityToolWindowFactory
 import org.springforge.qualityassurance.ui.ArchitectureSelectDialog
@@ -19,95 +21,93 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        println("🟦 Starting Enhanced Quality Analysis...")
+        println("🟦 Starting Combined Quality Analysis...")
 
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("SpringForge")
-            .createNotification("Starting code quality analysis...", NotificationType.INFORMATION)
-            .notify(project)
+        sendNotification(project, "Starting SpringForge code quality analysis...",
+            NotificationType.INFORMATION)
 
-        // Architecture selection dialog
         val dialog = ArchitectureSelectDialog()
         if (!dialog.showAndGet()) return
-
         val architecture = dialog.getSelectedArchitecture()
-        println("🟦 Selected architecture: $architecture")
+        println("🟦 Architecture: $architecture")
 
-        // Run analysis in background task
         ProgressManager.getInstance().run(object : Task.Backgroundable(
             project,
-            "Analyzing Project Code Quality...",
+            "SpringForge: Analyzing Code Quality...",
             true
         ) {
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    indicator.text = "Extracting features from Java files..."
-                    indicator.fraction = 0.2
+                    indicator.text = "Scanning Java files..."
+                    indicator.fraction = 0.15
 
-                    // ✅ FIX: Extract features inside ReadAction
-                    val fileFeatures = ReadAction.compute<List<org.springforge.qualityassurance.model.FileFeatureModel>, Throwable> {
+                    val fileFeatures = ReadAction.compute<List<FileFeatureModel>, Throwable> {
                         PsiFeatureExtractor.extractAllFiles(project, architecture)
                     }
 
-                    println("🟦 Extracted features from ${fileFeatures.size} files")
+                    println("🟦 Extracted ${fileFeatures.size} files")
 
                     if (fileFeatures.isEmpty()) {
-                        showError(project, "No Java files found in project")
+                        showError(
+                            project,
+                            "No Java files found in project.\n" +
+                            "Make sure the project contains Spring Boot Java source files."
+                        )
                         return
                     }
 
-                    indicator.text = "Sending to ML service for analysis..."
-                    indicator.fraction = 0.5
+                    indicator.text = "Running ML analysis (Anti-Pattern + Quality Score)..."
+                    indicator.fraction = 0.45
 
-                    // Call ML service (no PSI access here, safe without ReadAction)
-                    val result = MLServiceClient.analyzeProject(fileFeatures)
+                    val result = MLServiceClient.analyzeProjectFull(fileFeatures)
 
                     indicator.text = "Generating report..."
-                    indicator.fraction = 0.8
+                    indicator.fraction = 0.85
 
-                    println("🟩 Analysis complete: ${result.total_violations} violations found")
-
-                    // Show results in tool window
                     val panel = QualityToolWindowFactory.getPanel(project)
-                    panel?.showEnhancedResults(result)
+                    panel?.showCombinedResults(result)
 
                     indicator.fraction = 1.0
 
-                    // Show summary notification
-                    val notificationType = if (result.total_violations == 0) {
-                        NotificationType.INFORMATION
-                    } else if (result.anti_patterns.any { it.severity == "CRITICAL" }) {
-                        NotificationType.ERROR
-                    } else {
-                        NotificationType.WARNING
+                    println("🟩 Done — overall: ${result.overall_display}, violations: ${result.total_violations}")
+
+                    val notifType = when {
+                        result.anti_patterns.any { it.severity == "CRITICAL" } -> NotificationType.ERROR
+                        result.total_violations > 0 -> NotificationType.WARNING
+                        else -> NotificationType.INFORMATION
                     }
 
-                    NotificationGroupManager.getInstance()
-                        .getNotificationGroup("SpringForge")
-                        .createNotification(
-                            "Analysis Complete",
-                            result.summary,
-                            notificationType
-                        )
-                        .notify(project)
+                    sendNotification(
+                        project,
+                        "Analysis Complete — ${result.overall_display} | " +
+                        "${result.total_violations} violations in ${result.total_files_analyzed} files",
+                        notifType
+                    )
 
                 } catch (ex: Exception) {
-                    showError(project, "Error during analysis: ${ex.message}")
+                    showError(
+                        project,
+                        "Analysis failed: ${ex.message}\n\n" +
+                        "Make sure the ML Service is running on port 8081.\n" +
+                        "Start it with: uvicorn app.main:app --port 8081 --reload"
+                    )
                     ex.printStackTrace()
                 }
             }
         })
     }
 
-    private fun showError(project: com.intellij.openapi.project.Project, message: String) {
+    private fun showError(project: Project, message: String) {
         println("❌ $message")
-
         val panel = QualityToolWindowFactory.getPanel(project)
-        panel?.showMessage("❌ ERROR\n\n$message")
+        panel?.showMessage("❌ ANALYSIS ERROR\n\n$message")
+        sendNotification(project, message, NotificationType.ERROR)
+    }
 
+    private fun sendNotification(project: Project, message: String, type: NotificationType) {
         NotificationGroupManager.getInstance()
             .getNotificationGroup("SpringForge")
-            .createNotification("Analysis Error", message, NotificationType.ERROR)
+            .createNotification(message, type)
             .notify(project)
     }
 }
