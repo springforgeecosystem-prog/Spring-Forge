@@ -1,19 +1,25 @@
-// AnalyzeQualityAction.kt
+// src/main/java/org/springforge/qualityassurance/actions/AnalyzeQualityAction.kt
+// REPLACE your existing AnalyzeQualityAction.kt with this file
 package org.springforge.qualityassurance.actions
 
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.ToolWindowManager
 import org.springforge.qualityassurance.analysis.PsiFeatureExtractor
+import org.springforge.qualityassurance.model.CombinedAnalysisResult
 import org.springforge.qualityassurance.model.FileFeatureModel
+import org.springforge.qualityassurance.model.ProjectFixResult
 import org.springforge.qualityassurance.network.MLServiceClient
 import org.springforge.qualityassurance.toolwindow.QualityToolWindowFactory
+import org.springforge.qualityassurance.toolwindow.QualityToolWindowPanel
 import org.springforge.qualityassurance.ui.ArchitectureSelectDialog
 
 class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
@@ -22,9 +28,7 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
         val project = e.project ?: return
 
         println("🟦 Starting Combined Quality Analysis...")
-
-        sendNotification(project, "Starting SpringForge code quality analysis...",
-            NotificationType.INFORMATION)
+        sendNotification(project, "Starting SpringForge code quality analysis...", NotificationType.INFORMATION)
 
         val dialog = ArchitectureSelectDialog()
         if (!dialog.showAndGet()) return
@@ -38,8 +42,13 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
         ) {
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    indicator.text = "Scanning Java files..."
-                    indicator.fraction = 0.15
+                    // ── STEP 1: Ensure tool window is visible FIRST ───────────
+                    // This must happen on EDT before we try to get the panel
+                    showToolWindow(project)
+
+                    // ── STEP 2: Extract PSI features ──────────────────────────
+                    indicator.text    = "Scanning Java files..."
+                    indicator.fraction = 0.10
 
                     val fileFeatures = ReadAction.compute<List<FileFeatureModel>, Throwable> {
                         PsiFeatureExtractor.extractAllFiles(project, architecture)
@@ -48,48 +57,72 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
                     println("🟦 Extracted ${fileFeatures.size} files")
 
                     if (fileFeatures.isEmpty()) {
-                        showError(
-                            project,
-                            "No Java files found in project.\n" +
-                            "Make sure the project contains Spring Boot Java source files."
-                        )
+                        showError(project, "No Java files found in project.\nMake sure the project contains Spring Boot Java source files.")
                         return
                     }
 
-                    indicator.text = "Running ML analysis (Anti-Pattern + Quality Score)..."
-                    indicator.fraction = 0.45
+                    // ── STEP 3: Run ML models ─────────────────────────────────
+                    indicator.text     = "Running ML analysis (Anti-Pattern + Quality Score)..."
+                    indicator.fraction = 0.40
 
-                    val result = MLServiceClient.analyzeProjectFull(fileFeatures)
+                    val analysisResult = MLServiceClient.analyzeProjectFull(fileFeatures)
 
-                    indicator.text = "Generating report..."
-                    indicator.fraction = 0.85
+                    // ── STEP 4: Show initial report immediately on EDT ─────────
+                    indicator.text     = "Generating report..."
+                    indicator.fraction = 0.65
 
-                    val panel = QualityToolWindowFactory.getPanel(project)
-                    panel?.showCombinedResults(result)
+                    updatePanel(project) { panel ->
+                        panel.showCombinedResults(analysisResult, fixResult = null)
+                    }
+
+                    println("🟩 Initial report shown — overall: ${analysisResult.overall_display}, violations: ${analysisResult.total_violations}")
+
+                    // ── STEP 5: Call Gemini for AI fix suggestions ────────────
+                    if (analysisResult.anti_patterns.isNotEmpty()) {
+                        indicator.text     = "🤖 Generating AI fix suggestions (Gemini)..."
+                        indicator.fraction = 0.80
+
+                        try {
+                            val fixResult = MLServiceClient.generateProjectFixes(analysisResult)
+                            indicator.fraction = 0.95
+
+                            // Update the panel on EDT with AI fixes
+                            updatePanel(project) { panel ->
+                                panel.showCombinedResults(analysisResult, fixResult)
+                            }
+
+                            println("🟩 AI fixes added — ${fixResult.total_fixes} suggestions, powered: ${fixResult.suggestions.count { it.ai_powered }}")
+
+                        } catch (geminiEx: Exception) {
+                            println("⚠️ Gemini unavailable: ${geminiEx.message}")
+                            updatePanel(project) { panel ->
+                                panel.showCombinedResults(
+                                    analysisResult,
+                                    fixResult      = null,
+                                    geminiWarning  = "AI fix suggestions unavailable: ${geminiEx.message}"
+                                )
+                            }
+                        }
+                    }
 
                     indicator.fraction = 1.0
 
-                    println("🟩 Done — overall: ${result.overall_display}, violations: ${result.total_violations}")
-
+                    // ── STEP 6: Send completion notification ──────────────────
                     val notifType = when {
-                        result.anti_patterns.any { it.severity == "CRITICAL" } -> NotificationType.ERROR
-                        result.total_violations > 0 -> NotificationType.WARNING
-                        else -> NotificationType.INFORMATION
+                        analysisResult.anti_patterns.any { it.severity == "CRITICAL" } -> NotificationType.ERROR
+                        analysisResult.total_violations > 0                            -> NotificationType.WARNING
+                        else                                                            -> NotificationType.INFORMATION
                     }
-
                     sendNotification(
                         project,
-                        "Analysis Complete — ${result.overall_display} | " +
-                        "${result.total_violations} violations in ${result.total_files_analyzed} files",
+                        "Analysis Complete — ${analysisResult.overall_display} | ${analysisResult.total_violations} violations in ${analysisResult.total_files_analyzed} files",
                         notifType
                     )
 
                 } catch (ex: Exception) {
                     showError(
                         project,
-                        "Analysis failed: ${ex.message}\n\n" +
-                        "Make sure the ML Service is running on port 8081.\n" +
-                        "Start it with: uvicorn app.main:app --port 8081 --reload"
+                        "Analysis failed: ${ex.message}\n\nMake sure the ML Service is running on port 8081.\nStart it with: uvicorn app.main:app --port 8081 --reload"
                     )
                     ex.printStackTrace()
                 }
@@ -97,10 +130,76 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
         })
     }
 
+    /**
+     * Ensures the SpringForgeQuality tool window is visible.
+     * Must activate on EDT so the panel exists when we later call getPanel().
+     */
+    private fun showToolWindow(project: Project) {
+        ApplicationManager.getApplication().invokeAndWait {
+            try {
+                val toolWindowManager = ToolWindowManager.getInstance(project)
+                val tw = toolWindowManager.getToolWindow("SpringForgeQuality")
+                tw?.show()
+                tw?.activate(null)
+            } catch (ex: Exception) {
+                println("⚠️ Could not show tool window: ${ex.message}")
+            }
+        }
+        // Small pause to let the tool window render before we write to it
+        Thread.sleep(300)
+    }
+
+    /**
+     * Runs the given block on the EDT (Event Dispatch Thread) with a valid panel.
+     * This is the correct way to update Swing UI from a background thread in IntelliJ.
+     *
+     * Uses invokeAndWait so the background thread waits for the UI update to finish
+     * before proceeding to the next step (prevents race conditions).
+     */
+    private fun updatePanel(project: Project, block: (QualityToolWindowPanel) -> Unit) {
+        ApplicationManager.getApplication().invokeAndWait {
+            try {
+                val panel = getPanel(project)
+                if (panel != null) {
+                    block(panel)
+                } else {
+                    println("⚠️ Panel is null — tool window may not be visible yet")
+                }
+            } catch (ex: Exception) {
+                println("⚠️ Error updating panel: ${ex.message}")
+            }
+        }
+    }
+
+    /**
+     * Gets the QualityToolWindowPanel, trying multiple strategies.
+     * The standard QualityToolWindowFactory.getPanel() can return null if the
+     * content hasn't been selected. This tries harder.
+     */
+    private fun getPanel(project: Project): QualityToolWindowPanel? {
+        // Strategy 1: Standard approach via factory
+        val panel = QualityToolWindowFactory.getPanel(project)
+        if (panel != null) return panel
+
+        // Strategy 2: Get directly from tool window manager
+        return try {
+            val toolWindowManager = ToolWindowManager.getInstance(project)
+            val tw = toolWindowManager.getToolWindow("SpringForgeQuality") ?: return null
+            val contentManager = tw.contentManager
+            // Try selected content first, then first content
+            val content = contentManager.selectedContent ?: contentManager.getContent(0) ?: return null
+            content.component as? QualityToolWindowPanel
+        } catch (ex: Exception) {
+            println("⚠️ Could not get panel via ToolWindowManager: ${ex.message}")
+            null
+        }
+    }
+
     private fun showError(project: Project, message: String) {
         println("❌ $message")
-        val panel = QualityToolWindowFactory.getPanel(project)
-        panel?.showMessage("❌ ANALYSIS ERROR\n\n$message")
+        updatePanel(project) { panel ->
+            panel.showMessage("❌ ANALYSIS ERROR\n\n$message")
+        }
         sendNotification(project, message, NotificationType.ERROR)
     }
 
