@@ -14,10 +14,12 @@ object ErrorCollector {
         val paths = findFilesForClasses(project, classes)
         val files = getFileContents(paths)
         val classified = FileClassifier.classifyFiles(project, stacktrace, files)
+        val envData = ProjectEnvExtractor.extractEnvironment(project)
 
         return mapOf(
                 "error" to stacktrace,
-                "code_context" to classified
+                "code_context" to classified,
+                "environment" to envData
         )
     }
 

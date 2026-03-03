@@ -6,6 +6,6 @@ data class AnalysisResponse(
 )
 
 data class RetrievedDoc(
-        val source: String?,
-        val content: String
+        val title: String,
+        val url: String
 )

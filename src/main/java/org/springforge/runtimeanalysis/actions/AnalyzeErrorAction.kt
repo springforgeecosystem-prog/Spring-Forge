@@ -11,7 +11,7 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
 import org.springforge.runtimeanalysis.collector.ErrorCollector
 import org.springforge.runtimeanalysis.network.NetworkClient
-import org.springforge.runtimeanalysis.ui.AnalysisResultDialog
+import org.springforge.runtimeanalysis.ui.AnalysisDialogHelper
 import org.springforge.runtimeanalysis.ui.SpringForgeNotifier
 
 class AnalyzeErrorAction : AnAction("Analyze with SpringForge") {
@@ -48,7 +48,7 @@ class AnalyzeErrorAction : AnAction("Analyze with SpringForge") {
                     val response = NetworkClient.analyzeError(json)
 
                     ApplicationManager.getApplication().invokeLater {
-                        AnalysisResultDialog(project, response.answer).show()
+                        AnalysisDialogHelper.showAnalysisResult(project, response)
                     }
 
                 } catch (ex: Exception) {

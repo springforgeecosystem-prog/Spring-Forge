@@ -12,6 +12,7 @@ import org.springforge.runtimeanalysis.network.NetworkClient
 object RuntimeAnalysisService {
 
     private val log = Logger.getInstance(RuntimeAnalysisService::class.java)
+    private val gson = Gson()
 
     fun analyze(
             project: Project,
@@ -20,7 +21,7 @@ object RuntimeAnalysisService {
             onError: (String) -> Unit
     ) {
         val payload = ErrorCollector.buildErrorPayload(stacktrace, project)
-        val json = Gson().toJson(payload)
+        val json = gson.toJson(payload)
 
         ProgressManager.getInstance().run(
                 object : Task.Backgroundable(project, "Analyzing with SpringForge") {
@@ -29,8 +30,11 @@ object RuntimeAnalysisService {
                         try {
                             val response = NetworkClient.analyzeError(json)
 
+                            // Pass full response as JSON — panel renders answer + retrieved_docs
+                            val fullJson = gson.toJson(response)
+
                             ApplicationManager.getApplication().invokeLater {
-                                onResult(response.answer)
+                                onResult(fullJson)
                             }
 
                         } catch (ex: Exception) {
