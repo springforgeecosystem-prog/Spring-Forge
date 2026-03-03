@@ -1,7 +1,5 @@
 package org.springforge.toolwindow.panels
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -17,8 +15,8 @@ import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.runBlocking
 import org.springforge.cicdassistant.audit.AuditService
 import org.springforge.cicdassistant.bedrock.BedrockClient
+import org.springforge.cicdassistant.github.GitHubApiClient
 import org.springforge.cicdassistant.github.GitHubMCPClient
-import org.springforge.cicdassistant.github.mcp.GitHubMCPServerConnector
 import org.springforge.cicdassistant.services.ProjectAnalyzerService
 import org.springforge.cicdassistant.explainability.ExplainabilityResult
 import org.springforge.cicdassistant.explainability.ExplainabilityService
@@ -37,8 +35,6 @@ import javax.swing.text.StyleContext
  * and integrated validation tab.
  */
 class CICDPanel(private val project: Project) : JPanel() {
-
-    private val mapper = jacksonObjectMapper()
 
     // ── Source state ──────────────────────────────────────────────────────────
     private var isLocalSelected = true
@@ -561,8 +557,7 @@ class CICDPanel(private val project: Project) : JPanel() {
                         indicator.text = "Connecting to GitHub..."
                         indicator.fraction = 0.1
                         appendResults("🔗 Connecting to GitHub: $githubUrl (branch: $branch)...\n")
-                        val connector = GitHubMCPServerConnector()
-                        val client    = GitHubMCPClient(connector)
+                        val client    = GitHubMCPClient()
                         runBlocking { client.analyzeGitHubRepository(githubUrl, branch) }
                     }
 
@@ -925,10 +920,9 @@ class CICDPanel(private val project: Project) : JPanel() {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Fetching Branches", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    indicator.text     = "Connecting to GitHub MCP Server..."
+                    indicator.text     = "Connecting to GitHub API..."
                     indicator.fraction = 0.2
 
-                    val connector = GitHubMCPServerConnector()
                     val cleaned   = githubUrl
                         .removePrefix("https://").removePrefix("http://")
                         .removePrefix("www.").removePrefix("github.com/")
@@ -941,19 +935,7 @@ class CICDPanel(private val project: Project) : JPanel() {
                     indicator.text     = "Fetching branches from $owner/$repo..."
                     indicator.fraction = 0.5
 
-                    runBlocking { connector.connect() }
-
-                    val result = runBlocking {
-                        connector.callTool("list_branches", mapOf("owner" to owner, "repo" to repo))
-                    }
-
-                    val content  = result["content"] as? List<*>
-                    val textItem = content?.firstOrNull() as? Map<*, *>
-                    val jsonText = textItem?.get("text") as? String
-                        ?: throw IllegalStateException("Invalid MCP response format")
-
-                    val branches    = mapper.readValue<List<Map<String, Any>>>(jsonText)
-                    val branchNames = branches.mapNotNull { it["name"] as? String }
+                    val branchNames = GitHubApiClient().listBranches(owner, repo)
                     if (branchNames.isEmpty()) throw IllegalStateException("No branches found in repository")
 
                     availableBranches = branchNames

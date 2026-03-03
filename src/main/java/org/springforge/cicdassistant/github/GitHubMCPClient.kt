@@ -2,20 +2,18 @@ package org.springforge.cicdassistant.github
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.springforge.cicdassistant.github.mcp.GitHubMCPServerConnector
 import org.springforge.cicdassistant.mcp.models.*
 import java.time.Instant
 
 /**
- * Extracts Spring Boot project context from GitHub repositories using GitHub MCP Server
+ * Extracts Spring Boot project context from GitHub repositories using the GitHub REST API.
  *
  * This client provides the same MCPContext output as ProjectAnalyzerService,
  * but for remote GitHub repositories instead of local projects.
  *
  * Usage:
  * ```kotlin
- * val connector = GitHubMCPServerConnector()
- * val client = GitHubMCPClient(connector)
+ * val client = GitHubMCPClient()
  *
  * val context = runBlocking {
  *     client.analyzeGitHubRepository("https://github.com/spring-projects/spring-petclinic")
@@ -26,7 +24,7 @@ import java.time.Instant
  * ```
  */
 class GitHubMCPClient(
-    private val connector: GitHubMCPServerConnector
+    private val apiClient: GitHubApiClient = GitHubApiClient()
 ) {
     // Current branch being analyzed (set by analyzeGitHubRepository)
     private var branch: String = "main"
@@ -52,8 +50,6 @@ class GitHubMCPClient(
         println("Repository: $repo")
         println("Branch: $branchName")
         println("===================================\n")
-
-        connector.connect()
 
         try {
             // Step 1: Detect default branch (only use if user didn't specify one)
@@ -143,8 +139,6 @@ class GitHubMCPClient(
         } catch (e: Exception) {
             println("✗ GitHub repository analysis failed: ${e.message}")
             throw e
-        } finally {
-            connector.disconnect()
         }
     }
 
@@ -172,72 +166,16 @@ class GitHubMCPClient(
     }
 
     /**
-     * Detect the default branch of a repository.
-     * Uses get_repository_tree without tree_sha, which defaults to the repo's default branch.
-     * Then we can check the current branch from the response or use list_branches.
+     * Detect the default branch using GET /repos/{owner}/{repo} which always exposes `default_branch`.
      */
     private fun detectDefaultBranch(owner: String, repo: String): String {
         return try {
-            // Use list_branches to get all branches
-            val result = connector.callTool(
-                toolName = "list_branches",
-                arguments = mapOf(
-                    "owner" to owner,
-                    "repo" to repo
-                )
-            )
-
-            val branches = result["branches"] as? List<*>
-
-            // Try to find a branch marked as default in the response
-            val defaultBranch = branches?.find { branch ->
-                (branch as? Map<*, *>)?.get("is_default") == true ||
-                (branch as? Map<*, *>)?.get("default") == true
-            }
-
-            if (defaultBranch != null) {
-                val branchName = (defaultBranch as Map<*, *>)["name"] as? String
-                if (branchName != null) {
-                    println("[GitHubMCPClient] Found default branch from API: $branchName")
-                    return branchName
-                }
-            }
-
-            // Fallback: Try each common default branch individually using get_file_contents
-            // to see which one exists as the repository's default
-            val commonDefaults = listOf("master", "main", "develop", "trunk")
-
-            for (candidateBranch in commonDefaults) {
-                try {
-                    // Try to get README or any file from this branch
-                    connector.callTool(
-                        toolName = "get_file_contents",
-                        arguments = mapOf(
-                            "owner" to owner,
-                            "repo" to repo,
-                            "path" to "README.md",
-                            "ref" to candidateBranch
-                        )
-                    )
-                    // If this succeeds, the branch exists and is likely the default
-                    println("[GitHubMCPClient] Detected default branch by probing: $candidateBranch")
-                    return candidateBranch
-                } catch (e: Exception) {
-                    // Branch doesn't exist or doesn't have README, try next
-                    continue
-                }
-            }
-
-            // Final fallback: use first branch from list or "main"
-            val branchNames = branches?.mapNotNull { (it as? Map<*, *>)?.get("name") as? String } ?: emptyList()
-            val detected = branchNames.firstOrNull() ?: "main"
-
-            println("[GitHubMCPClient] Using first available branch as default: $detected")
-            detected
-
+            val branch = apiClient.getRepoDefaultBranch(owner, repo)
+            println("[GitHubMCPClient] Detected default branch from API: $branch")
+            branch
         } catch (e: Exception) {
             println("[GitHubMCPClient] Failed to detect default branch: ${e.message}, using 'main'")
-            "main" // Fallback
+            "main"
         }
     }
 
@@ -586,27 +524,11 @@ class GitHubMCPClient(
     }
 
     /**
-     * Search for files containing a specific annotation
+     * Search for files containing a specific annotation using GitHub code search
      */
     private fun searchForAnnotation(owner: String, repo: String, annotation: String): List<String> {
         return try {
-            val result = connector.callTool(
-                toolName = "search_code",
-                arguments = mapOf(
-                    "owner" to owner,
-                    "repo" to repo,
-                    "query" to annotation
-                )
-            )
-
-            @Suppress("UNCHECKED_CAST")
-            val items = result["items"] as? List<Map<String, Any>> ?: emptyList()
-
-            items.mapNotNull { item ->
-                val path = item["path"] as? String
-                path?.let { extractClassName(it) }
-            }
-
+            apiClient.searchCode(owner, repo, annotation).mapNotNull { extractClassName(it) }
         } catch (e: Exception) {
             println("  Warning: Search for $annotation failed: ${e.message}")
             emptyList()
@@ -679,60 +601,10 @@ class GitHubMCPClient(
     }
 
     /**
-     * Get file contents from repository using get_file_contents tool
+     * Get file contents from repository using the GitHub REST API
      */
     private fun getFileContents(owner: String, repo: String, path: String): String {
-        val result = connector.callTool(
-            toolName = "get_file_contents",
-            arguments = mapOf(
-                "owner" to owner,
-                "repo" to repo,
-                "path" to path,
-                "ref" to branch // Specify which branch/ref to read from
-            )
-        )
-
-        // Check if the MCP response indicates an error (e.g., file not found - 404)
-        if (result["isError"] == true) {
-            val content = result["content"] as? List<*>
-            val errorMsg = (content?.firstOrNull() as? Map<*, *>)?.get("text") as? String
-            println("  [getFileContents] MCP error for $path: ${errorMsg ?: "Unknown error"}")
-            throw Exception("File not found or inaccessible: $path")
-        }
-
-        // MCP response format: {"content": [{"type":"text",...}, {"type":"resource","resource":{"text":"..."}}]}
-        val content = result["content"] as? List<*>
-
-        if (content == null) {
-            println("  [getFileContents] ERROR: result['content'] is not a List for $path")
-            return ""
-        }
-
-        // Find the resource object with the actual file text
-        for ((index, item) in content.withIndex()) {
-            val itemMap = item as? Map<*, *>
-            if (itemMap == null) {
-                println("  [getFileContents] WARNING: content[$index] is not a Map")
-                continue
-            }
-
-            if (itemMap["type"] == "resource") {
-                val resource = itemMap["resource"] as? Map<*, *>
-                if (resource == null) {
-                    println("  [getFileContents] WARNING: resource object is not a Map")
-                    continue
-                }
-
-                val text = resource["text"] as? String
-                if (text != null) {
-                    println("  [getFileContents] ✓ Extracted ${text.length} chars from $path")
-                    return text
-                }
-            }
-        }
-
-        println("  [getFileContents] ERROR: No resource text found for $path")
-        return ""
+        return apiClient.getFileContents(owner, repo, path, branch)
     }
 
     /**

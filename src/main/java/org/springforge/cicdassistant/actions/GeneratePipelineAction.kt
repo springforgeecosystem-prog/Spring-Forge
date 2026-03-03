@@ -11,7 +11,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import kotlinx.coroutines.runBlocking
 import org.springforge.cicdassistant.bedrock.BedrockClient
 import org.springforge.cicdassistant.github.GitHubMCPClient
-import org.springforge.cicdassistant.github.mcp.GitHubMCPServerConnector
 import org.springforge.cicdassistant.mcp.models.MCPContext
 import org.springforge.cicdassistant.services.ClaudeService
 import org.springforge.cicdassistant.services.ProjectAnalyzerService
@@ -75,11 +74,10 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
                             analyzerService.analyzeProjectWithMCP(project)
                         }
                         SourceType.GITHUB -> {
-                            indicator.text = "Connecting to GitHub MCP Server..."
+                            indicator.text = "Connecting to GitHub API..."
                             indicator.fraction = 0.1
 
-                            val connector = GitHubMCPServerConnector()
-                            val githubClient = GitHubMCPClient(connector)
+                            val githubClient = GitHubMCPClient()
 
                             indicator.text = "Analyzing GitHub repository: $githubUrl (branch: $githubBranch)..."
                             indicator.fraction = 0.2

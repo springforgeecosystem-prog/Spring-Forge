@@ -190,7 +190,6 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
             "  • Generate artifacts for popular repositories<br>" +
             "  <br>" +
             "  <b>Requirements:</b><br>" +
-            "  • Docker Desktop must be installed and running<br>" +
             "  • GitHub PAT must be configured in .env file<br>" +
             "</small></html>"
         )
@@ -263,18 +262,6 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
                 return
             }
 
-            // Check if Docker is available
-            if (!isDockerAvailable()) {
-                showError(
-                    "Docker is not available.\n\n" +
-                    "GitHub MCP Server requires Docker Desktop to be installed and running.\n\n" +
-                    "Please:\n" +
-                    "1. Install Docker Desktop from: https://www.docker.com/products/docker-desktop\n" +
-                    "2. Start Docker Desktop\n" +
-                    "3. Try again"
-                )
-                return
-            }
         }
 
         super.doOKAction()
@@ -434,22 +421,6 @@ class SourceSelectionDialog(project: Project) : DialogWrapper(project) {
         )
 
         return patterns.any { it.matches(url) }
-    }
-
-    /**
-     * Check if Docker is available
-     */
-    private fun isDockerAvailable(): Boolean {
-        return try {
-            val process = ProcessBuilder("docker", "--version")
-                .redirectErrorStream(true)
-                .start()
-
-            val exitCode = process.waitFor()
-            exitCode == 0
-        } catch (e: Exception) {
-            false
-        }
     }
 
     /**
