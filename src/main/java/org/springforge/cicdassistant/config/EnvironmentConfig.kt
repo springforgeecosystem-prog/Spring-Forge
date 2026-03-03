@@ -1,6 +1,5 @@
 package org.springforge.cicdassistant.config
 
-import software.amazon.awssdk.regions.Region
 import java.io.File
 
 /**
@@ -71,19 +70,15 @@ object EnvironmentConfig {
         return envVariables[key] ?: System.getenv(key) ?: defaultValue
     }
 
-    // AWS Configuration
-    object AWS {
-        val region: Region
-            get() = Region.of(getEnv("AWS_REGION", "us-east-1"))
+    // SpringForge API Gateway Configuration
+    object Api {
+        val url: String?
+            get() = getEnv("SPRINGFORGE_API_URL")
 
-        val accessKeyId: String?
-            get() = getEnv("AWS_ACCESS_KEY_ID")
+        val apiKey: String?
+            get() = getEnv("SPRINGFORGE_API_KEY")
 
-        val secretAccessKey: String?
-            get() = getEnv("AWS_SECRET_ACCESS_KEY")
-
-        val sessionToken: String?
-            get() = getEnv("AWS_SESSION_TOKEN")
+        fun isConfigured(): Boolean = !url.isNullOrBlank()
     }
 
     // Claude Configuration
@@ -148,14 +143,9 @@ object EnvironmentConfig {
      * @throws IllegalStateException if required variables are missing
      */
     fun validate() {
-        val missing = mutableListOf<String>()
-
-        if (AWS.accessKeyId.isNullOrBlank()) missing.add("AWS_ACCESS_KEY_ID")
-        if (AWS.secretAccessKey.isNullOrBlank()) missing.add("AWS_SECRET_ACCESS_KEY")
-
-        if (missing.isNotEmpty()) {
+        if (Api.url.isNullOrBlank()) {
             val errorMessage = buildString {
-                appendLine("Missing required environment variables: ${missing.joinToString(", ")}")
+                appendLine("Missing required environment variable: SPRINGFORGE_API_URL")
                 appendLine()
                 appendLine("Debugging info:")
                 appendLine("  Current directory: ${System.getProperty("user.dir")}")
@@ -163,9 +153,8 @@ object EnvironmentConfig {
                 appendLine("  Loaded ${envVariables.size} variables from .env file")
                 appendLine()
                 appendLine("Solutions:")
-                appendLine("  1. Copy .env file to: ${System.getProperty("user.home")}\\.springforge.env")
-                appendLine("  2. Or set system environment variables")
-                appendLine("  3. Or ensure .env exists at: D:\\SLIIT\\SpringForge\\Spring-Forge\\.env")
+                appendLine("  1. Add SPRINGFORGE_API_URL=<your API Gateway URL> to your .env file")
+                appendLine("  2. Or set SPRINGFORGE_API_URL as a system environment variable")
             }
             throw IllegalStateException(errorMessage)
         }
@@ -174,19 +163,15 @@ object EnvironmentConfig {
     /**
      * Check if configuration is available
      */
-    fun isConfigured(): Boolean {
-        return !AWS.accessKeyId.isNullOrBlank() && !AWS.secretAccessKey.isNullOrBlank()
-    }
+    fun isConfigured(): Boolean = Api.isConfigured()
 
     /**
      * Print configuration status (without exposing sensitive data)
      */
     fun printStatus() {
         println("=== SpringForge Configuration ===")
-        println("AWS Region: ${AWS.region}")
-        println("AWS Access Key: ${if (AWS.accessKeyId.isNullOrBlank()) "NOT SET" else "SET (${AWS.accessKeyId?.take(8)}...)"}")
-        println("AWS Secret Key: ${if (AWS.secretAccessKey.isNullOrBlank()) "NOT SET" else "SET"}")
-        println("AWS Session Token: ${if (AWS.sessionToken.isNullOrBlank()) "NOT SET" else "SET"}")
+        println("API URL: ${if (Api.isConfigured()) Api.url else "NOT SET"}")
+        println("API Key: ${if (Api.apiKey.isNullOrBlank()) "NOT SET (open access)" else "SET"}")
         println("Claude Model: ${Claude.modelId}")
         println("Max Tokens: ${Claude.maxTokens}")
         println("Anthropic Version: ${Claude.anthropicVersion}")

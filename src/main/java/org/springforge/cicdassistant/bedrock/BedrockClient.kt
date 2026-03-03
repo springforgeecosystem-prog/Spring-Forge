@@ -4,64 +4,52 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.springforge.cicdassistant.config.EnvironmentConfig
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
-import software.amazon.awssdk.core.SdkBytes
-import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
-import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest
-import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 
 /**
- * AWS Bedrock client for invoking Claude 4 Sonnet model.
- * Handles communication with AWS Bedrock Runtime API for AI-powered artifact generation.
- * 
- * Credentials are loaded from .env file via EnvironmentConfig:
- * - AWS_ACCESS_KEY_ID
- * - AWS_SECRET_ACCESS_KEY
- * - AWS_REGION (optional, defaults to us-east-1)
- * - CLAUDE_MODEL_ID (optional, defaults to Claude Sonnet 4)
+ * SpringForge Bedrock proxy client — calls the API Gateway / Lambda proxy instead
+ * of AWS Bedrock directly. Users need only SPRINGFORGE_API_URL in their .env.
  */
 class BedrockClient {
-    
+
     private val objectMapper = jacksonObjectMapper()
-    
+    private val httpClient: HttpClient = HttpClient.newHttpClient()
+
     // Helper function to parse JSON context safely
     private fun parseContext(json: String): Map<String, Any> {
         return objectMapper.readValue(json, object : TypeReference<Map<String, Any>>() {})
     }
-    
+
     /**
-     * AWS Bedrock Runtime client initialized with credentials from .env file.
-     * Supports both permanent credentials (AKIA*) and temporary credentials (ASIA* with session token).
+     * Posts a Bedrock-compatible payload to the SpringForge API Gateway proxy.
+     * The Lambda extracts modelId and forwards the rest to Bedrock.
      */
-    private val bedrockClient: BedrockRuntimeClient by lazy {
-        // Validate configuration
-        if (!EnvironmentConfig.isConfigured()) {
-            throw BedrockException("AWS credentials not configured. Please set up your .env file with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY")
+    private fun postToGateway(payload: Map<String, Any>): String {
+        val url = EnvironmentConfig.Api.url
+            ?: throw BedrockException("SPRINGFORGE_API_URL not configured. Add it to your .env file.")
+
+        val requestBuilder = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+
+        EnvironmentConfig.Api.apiKey?.takeIf { it.isNotBlank() }
+            ?.let { requestBuilder.header("x-api-key", it) }
+
+        val response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString())
+
+        if (response.statusCode() != 200) {
+            val errMsg = try {
+                @Suppress("UNCHECKED_CAST")
+                (objectMapper.readValue(response.body(), Map::class.java) as Map<String, Any>)["error"]
+                    ?: response.body()
+            } catch (_: Exception) { response.body() }
+            throw BedrockException("Gateway error ${response.statusCode()}: $errMsg")
         }
-        
-        // Check if using temporary credentials (session token present)
-        val credentialsProvider = if (EnvironmentConfig.AWS.sessionToken != null) {
-            // Temporary credentials with session token
-            val sessionCredentials = software.amazon.awssdk.auth.credentials.AwsSessionCredentials.create(
-                EnvironmentConfig.AWS.accessKeyId,
-                EnvironmentConfig.AWS.secretAccessKey,
-                EnvironmentConfig.AWS.sessionToken
-            )
-            StaticCredentialsProvider.create(sessionCredentials)
-        } else {
-            // Permanent credentials
-            val credentials = AwsBasicCredentials.create(
-                EnvironmentConfig.AWS.accessKeyId,
-                EnvironmentConfig.AWS.secretAccessKey
-            )
-            StaticCredentialsProvider.create(credentials)
-        }
-        
-        BedrockRuntimeClient.builder()
-            .region(EnvironmentConfig.AWS.region)
-            .credentialsProvider(credentialsProvider)
-            .build()
+        return response.body()
     }
     
     /**
@@ -245,122 +233,64 @@ class BedrockClient {
     }
     
     /**
-     * Invokes Claude 4 Sonnet with assistant prefill to prevent hallucination.
-     * Prefill forces Claude to start its response with specific text.
-     *
-     * @param prompt The complete prompt to send to Claude
-     * @param prefill The text to start Claude's response with
-     * @return Prefill + Claude's continuation
-     * @throws BedrockException if the API call fails or response is invalid
+     * Invokes Claude via the API Gateway proxy with assistant prefill to prevent hallucination.
      */
     private fun invokeModelWithPrefill(prompt: String, prefill: String): String {
         return invokeWithRetry {
             try {
-                // Build the request payload with prefill (assistant message)
-                val requestBody = mapOf(
+                val payload = mapOf(
+                    "modelId"           to EnvironmentConfig.Claude.modelId,
                     "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
-                    "max_tokens" to EnvironmentConfig.Claude.maxTokens,
-                    "messages" to listOf(
-                        mapOf(
-                            "role" to "user",
-                            "content" to prompt
-                        ),
-                        mapOf(
-                            "role" to "assistant",
-                            "content" to prefill  // Forces Claude to continue from here
-                        )
+                    "max_tokens"        to EnvironmentConfig.Claude.maxTokens,
+                    "messages"          to listOf(
+                        mapOf("role" to "user",      "content" to prompt),
+                        mapOf("role" to "assistant", "content" to prefill)
                     ),
-                    "temperature" to 0.0,  // Deterministic for prefill
-                    "top_p" to 0.9
+                    "temperature" to 0.0,
+                    "top_p"       to 0.9
                 )
-                
-                val requestBodyJson = objectMapper.writeValueAsString(requestBody)
-                
-                val invokeRequest = InvokeModelRequest.builder()
-                    .modelId(EnvironmentConfig.Claude.modelId)
-                    .body(SdkBytes.fromUtf8String(requestBodyJson))
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .build()
-                
-                val response = bedrockClient.invokeModel(invokeRequest)
-                val responseBody = response.body().asUtf8String()
+                val responseBody = postToGateway(payload)
                 val responseMap: Map<String, Any> = objectMapper.readValue(responseBody)
-                
                 val content = responseMap["content"] as? List<*>
                     ?: throw BedrockException("Invalid response format: missing 'content' field")
-                
                 val firstContent = content.firstOrNull() as? Map<*, *>
                     ?: throw BedrockException("Invalid response format: empty content array")
-                
                 val generatedText = firstContent["text"] as? String
                     ?: throw BedrockException("Invalid response format: missing 'text' field")
-                
-                // Return prefill + Claude's continuation
                 prefill + generatedText.trim()
-                
-            } catch (e: Exception) {
+            } catch (e: BedrockException) { throw e }
+            catch (e: Exception) {
                 throw BedrockException("Failed to invoke Bedrock model with prefill: ${e.message}", e)
             }
         }
     }
-    
+
     /**
-     * Invokes Claude 4 Sonnet model via AWS Bedrock Runtime API.
-     *
-     * @param prompt The complete prompt to send to Claude
-     * @return Claude's response text
-     * @throws BedrockException if the API call fails or response is invalid
+     * Invokes Claude via the API Gateway proxy.
      */
     private fun invokeModel(prompt: String): String {
         return invokeWithRetry {
             try {
-                // Build the request payload for Claude (Anthropic Messages API format)
-                val requestBody = mapOf(
+                val payload = mapOf(
+                    "modelId"           to EnvironmentConfig.Claude.modelId,
                     "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
-                    "max_tokens" to EnvironmentConfig.Claude.maxTokens,
-                    "messages" to listOf(
-                        mapOf(
-                            "role" to "user",
-                            "content" to prompt
-                        )
-                    ),
-                    "temperature" to 0.7,
-                    "top_p" to 0.9
+                    "max_tokens"        to EnvironmentConfig.Claude.maxTokens,
+                    "messages"          to listOf(mapOf("role" to "user", "content" to prompt)),
+                    "temperature"       to 0.7,
+                    "top_p"             to 0.9
                 )
-                
-                val requestBodyJson = objectMapper.writeValueAsString(requestBody)
-                
-                // Create the Bedrock invoke model request
-                val invokeRequest = InvokeModelRequest.builder()
-                    .modelId(EnvironmentConfig.Claude.modelId)
-                    .body(SdkBytes.fromUtf8String(requestBodyJson))
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .build()
-                
-                // Invoke the model
-                val response: InvokeModelResponse = bedrockClient.invokeModel(invokeRequest)
-                
-                // Parse the response
-                val responseBody = response.body().asUtf8String()
+                val responseBody = postToGateway(payload)
                 val responseMap: Map<String, Any> = objectMapper.readValue(responseBody)
-                
-                // Extract the generated text from Claude's response
-                // Response format: {"content": [{"text": "..."}], "stop_reason": "end_turn"}
                 val content = responseMap["content"] as? List<*>
                     ?: throw BedrockException("Invalid response format: missing 'content' field")
-                
                 val firstContent = content.firstOrNull() as? Map<*, *>
                     ?: throw BedrockException("Invalid response format: empty content array")
-                
                 val generatedText = firstContent["text"] as? String
                     ?: throw BedrockException("Invalid response format: missing 'text' field")
-                
                 generatedText.trim()
-                
-            } catch (e: Exception) {
-                throw BedrockException("Failed to invoke Bedrock model: ${e.message}", e)
+            } catch (e: BedrockException) { throw e }
+            catch (e: Exception) {
+                throw BedrockException("Failed to invoke model: ${e.message}", e)
             }
         }
     }
@@ -1548,43 +1478,34 @@ Do NOT include:
     fun explainArtifact(prompt: String): String {
         return invokeWithRetry {
             try {
-                val requestBody = mapOf(
+                val payload = mapOf(
+                    "modelId"           to EnvironmentConfig.Claude.modelId,
                     "anthropic_version" to EnvironmentConfig.Claude.anthropicVersion,
                     "max_tokens"        to 8192,
                     "messages"          to listOf(mapOf("role" to "user", "content" to prompt)),
                     "temperature"       to 0.3,
                     "top_p"             to 0.9
                 )
-                val requestBodyJson = objectMapper.writeValueAsString(requestBody)
-                val invokeRequest = InvokeModelRequest.builder()
-                    .modelId(EnvironmentConfig.Claude.modelId)
-                    .body(SdkBytes.fromUtf8String(requestBodyJson))
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .build()
-
-                val response: InvokeModelResponse = bedrockClient.invokeModel(invokeRequest)
-                val responseBody = response.body().asUtf8String()
+                val responseBody = postToGateway(payload)
                 val responseMap: Map<String, Any> = objectMapper.readValue(responseBody)
-
                 val content = responseMap["content"] as? List<*>
                     ?: throw BedrockException("Invalid response: missing 'content'")
                 val firstContent = content.firstOrNull() as? Map<*, *>
                     ?: throw BedrockException("Invalid response: empty content array")
                 (firstContent["text"] as? String)?.trim()
                     ?: throw BedrockException("Invalid response: missing 'text' field")
-            } catch (e: Exception) {
+            } catch (e: BedrockException) { throw e }
+            catch (e: Exception) {
                 throw BedrockException("Explanation call failed: ${e.message}", e)
             }
         }
     }
 
     /**
-     * Closes the Bedrock client and releases resources.
+     * No-op: HttpClient has no resources to release.
+     * Kept for source compatibility with existing call sites.
      */
-    fun close() {
-        bedrockClient.close()
-    }
+    fun close() { /* HttpClient manages its own lifecycle */ }
 }
 
 /**

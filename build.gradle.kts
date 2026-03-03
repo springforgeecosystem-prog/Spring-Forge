@@ -18,12 +18,6 @@ dependencies {
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.16.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
-    // AWS Bedrock Dependencies - Use platform() for BOM
-    implementation(platform("software.amazon.awssdk:bom:2.39.1"))
-    implementation("software.amazon.awssdk:bedrockruntime")
-    implementation("software.amazon.awssdk:auth")
-    implementation("software.amazon.awssdk:sts") // For credential validation
-
     // AST Analysis - JavaParser for Java code analysis
     implementation("com.github.javaparser:javaparser-symbol-solver-core:3.25.7")
 
