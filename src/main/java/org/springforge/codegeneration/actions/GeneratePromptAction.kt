@@ -9,6 +9,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.vfs.LocalFileSystem
+import org.springforge.codegeneration.analysis.ExistingEntityExtractor
 import org.springforge.codegeneration.analysis.ProjectContextBuilder
 import org.springforge.codegeneration.parser.YamlParser
 import org.springforge.codegeneration.service.PromptBuilder
@@ -50,12 +51,20 @@ class GeneratePromptAction : AnAction("Generate Prompt", "Build prompt combining
         object : Task.Backgroundable(project, "SpringForge: Building Prompt...", false) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.text = "Analyzing project structure..."
-                indicator.fraction = 0.3
+                indicator.fraction = 0.2
                 val analysis = ProjectContextBuilder.build(project)
+
+                indicator.text = "Scanning existing entities..."
+                indicator.fraction = 0.5
+                val existingEntities = try {
+                    val extractor = ExistingEntityExtractor(baseDir)
+                    val result = extractor.extract()
+                    if (result.isEmpty) null else result
+                } catch (_: Exception) { null }
 
                 indicator.text = "Building prompt..."
                 indicator.fraction = 0.7
-                val prompt = PromptBuilder.buildPrompt(yamlModel, analysis)
+                val prompt = PromptBuilder.buildPrompt(yamlModel, analysis, existingEntities)
 
                 val promptFile = File(baseDir, "springforge_prompt.txt")
                 promptFile.writeText(prompt)

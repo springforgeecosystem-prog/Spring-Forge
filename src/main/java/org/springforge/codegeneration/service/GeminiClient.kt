@@ -22,17 +22,17 @@ import java.util.concurrent.TimeUnit
  */
 class GeminiClient(
     private val apiKey: String = resolveApiKey(),
-    private val model: String = "gemini-3-flash-preview",
+    private val model: String = "gemini-2.5-flash",
     private val baseUrl: String = "https://generativelanguage.googleapis.com/v1beta"
 ) {
 
     companion object {
         /**
-         * Resolve the API key from environment variable or .env file.
+         * Resolve the API key from environment variable, bundled .env, or filesystem .env.
          * Search order:
          *  1. System env var GEMINI_API_KEY
-         *  2. .env in the target project root (if provided)
-         *  3. .env in the plugin's own source project (found via classpath)
+         *  2. Bundled .env inside the JAR (packed at build time by Gradle processResources)
+         *  3. .env in the target project root (if provided)
          *  4. ~/.springforge/.env  (user home)
          *  5. Current working directory .env
          */
@@ -41,29 +41,24 @@ class GeminiClient(
             val envKey = System.getenv("GEMINI_API_KEY")
             if (!envKey.isNullOrBlank()) return envKey
 
-            // 2. Gather all possible .env file locations
+            // 2. Check the bundled .env resource inside the JAR
+            //    (The .env from the plugin project root is copied into JAR
+            //     resources by the processResources task in build.gradle.kts)
+            try {
+                val stream = GeminiClient::class.java.classLoader.getResourceAsStream(".env")
+                if (stream != null) {
+                    val bundledKey = parseDotEnvStream(stream)["GEMINI_API_KEY"]
+                    if (!bundledKey.isNullOrBlank()) return bundledKey
+                }
+            } catch (_: Exception) { /* ignore classpath resolution failures */ }
+
+            // 3. Gather filesystem .env file locations as fallback
             val dotEnvLocations = mutableListOf<File>()
 
             // Target project root
             if (projectRoot != null) {
                 dotEnvLocations.add(File(projectRoot, ".env"))
             }
-
-            // Plugin's own project root (traces back from compiled class location)
-            try {
-                val classLocation = GeminiClient::class.java.protectionDomain?.codeSource?.location
-                if (classLocation != null) {
-                    var dir = File(classLocation.toURI())
-                    // Walk up from build/classes/... to project root
-                    repeat(6) {
-                        dir = dir.parentFile ?: dir
-                        val candidate = File(dir, ".env")
-                        if (candidate.exists()) {
-                            dotEnvLocations.add(0, candidate) // prioritize
-                        }
-                    }
-                }
-            } catch (_: Exception) { /* ignore classpath resolution failures */ }
 
             // User home directory
             val userHome = System.getProperty("user.home")
@@ -104,13 +99,34 @@ class GeminiClient(
             }
             return map
         }
+
+        /**
+         * Parse a .env-formatted InputStream (for reading bundled JAR resources).
+         */
+        private fun parseDotEnvStream(stream: java.io.InputStream): Map<String, String> {
+            val map = mutableMapOf<String, String>()
+            stream.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    val trimmed = line.trim()
+                    if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                        val eqIndex = trimmed.indexOf('=')
+                        if (eqIndex > 0) {
+                            val key = trimmed.substring(0, eqIndex).trim()
+                            val value = trimmed.substring(eqIndex + 1).trim()
+                            map[key] = value
+                        }
+                    }
+                }
+            }
+            return map
+        }
     }
 
     private val mapper = jacksonObjectMapper()
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)   // LLM can be slow for large generations
+        .readTimeout(300, TimeUnit.SECONDS)   // 5 min — LLM needs more time for large prompts with existing entity context
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
@@ -142,7 +158,7 @@ class GeminiClient(
             ),
             "generationConfig" to mapOf(
                 "temperature" to 0.2,          // low temp for deterministic code
-                "maxOutputTokens" to 65536,
+                "maxOutputTokens" to 16384,    // 16K is enough for typical entity generation; avoids slow 65K inference
                 "topP" to 0.95
             )
         )

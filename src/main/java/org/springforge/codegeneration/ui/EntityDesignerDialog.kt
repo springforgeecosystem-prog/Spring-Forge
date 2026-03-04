@@ -9,6 +9,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextField
+import org.springforge.codegeneration.analysis.ExistingEntityExtractor
 import org.springforge.codegeneration.parser.*
 import java.awt.*
 import java.awt.event.MouseAdapter
@@ -48,7 +49,9 @@ data class UIEntity(
 
 class EntityDesignerDialog(
     private val project: Project,
-    private var existingModel: InputModel? = null
+    private var existingModel: InputModel? = null,
+    /** Existing entities already in the project (read-only display, prevents clashes) */
+    private val existingProjectEntities: ExistingEntityExtractor.ExtractionResult? = null
 ) : DialogWrapper(project, true) {
 
     private val entities = mutableListOf<UIEntity>()
@@ -59,9 +62,13 @@ class EntityDesignerDialog(
     private val globalRelationships = mutableListOf<UIRelationship>()
     private val relationshipListPanel = JPanel()
 
+    /** Names of existing entities (lowercase) for clash detection */
+    private val existingEntityNames: Set<String> = existingProjectEntities?.entities
+        ?.map { it.name.lowercase() }?.toSet() ?: emptySet()
+
     init {
         title = "SpringForge — Entity Designer"
-        setSize(820, 680)
+        setSize(920, 780)
 
         // Pre-populate from existing model if available
         if (existingModel != null) {
@@ -80,9 +87,19 @@ class EntityDesignerDialog(
 
     override fun createCenterPanel(): JComponent {
         val root = JPanel(BorderLayout(0, 8))
-        root.preferredSize = Dimension(800, 620)
+        root.preferredSize = Dimension(900, 720)
 
-        // ── TOP: Entity management bar ──
+        // ── TOP: Existing entities panel (read-only) + Entity management bar ──
+        val topWrapper = JPanel()
+        topWrapper.layout = BoxLayout(topWrapper, BoxLayout.Y_AXIS)
+
+        // Show existing project entities if any were detected
+        if (existingProjectEntities != null && !existingProjectEntities.isEmpty) {
+            val existingPanel = createExistingEntitiesPanel()
+            topWrapper.add(existingPanel)
+            topWrapper.add(Box.createVerticalStrut(8))
+        }
+
         val topBar = JPanel(BorderLayout(5, 0))
         topBar.border = BorderFactory.createEmptyBorder(0, 0, 5, 0)
 
@@ -96,13 +113,14 @@ class EntityDesignerDialog(
         btnPanel.add(addEntityBtn)
         btnPanel.add(removeEntityBtn)
 
-        val headerLabel = JBLabel("Define your entities, fields, and relationships:")
+        val headerLabel = JBLabel("Define your NEW entities, fields, and relationships:")
         headerLabel.font = headerLabel.font.deriveFont(Font.BOLD, 13f)
 
         topBar.add(headerLabel, BorderLayout.NORTH)
         topBar.add(btnPanel, BorderLayout.SOUTH)
 
-        root.add(topBar, BorderLayout.NORTH)
+        topWrapper.add(topBar)
+        root.add(topWrapper, BorderLayout.NORTH)
 
         // ── CENTER: Tabbed entity editors + relationships ──
         val mainSplit = JSplitPane(JSplitPane.VERTICAL_SPLIT)
@@ -121,6 +139,121 @@ class EntityDesignerDialog(
         root.add(mainSplit, BorderLayout.CENTER)
 
         return root
+    }
+
+    // ─── Existing Entities Panel (Read-Only) ─────────────────────────
+
+    /**
+     * Creates a collapsible, read-only panel showing entities that already
+     * exist in the project so users know what's already there and avoid clashes.
+     */
+    private fun createExistingEntitiesPanel(): JPanel {
+        val entities = existingProjectEntities!!.entities
+        val relationships = existingProjectEntities.relationships
+
+        val wrapper = JPanel(BorderLayout(5, 5))
+        wrapper.border = BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(JBColor(Color(70, 130, 180), Color(70, 130, 180)), 1),
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        )
+        wrapper.background = JBColor(Color(240, 248, 255), Color(40, 50, 60))
+
+        // Header with collapse toggle
+        val headerPanel = JPanel(BorderLayout(5, 0))
+        headerPanel.isOpaque = false
+
+        val headerLabel = JBLabel(
+            "\uD83D\uDCC2 Existing Project Entities (${entities.size} found — read-only)"
+        )
+        headerLabel.font = headerLabel.font.deriveFont(Font.BOLD, 12f)
+        headerLabel.foreground = JBColor(Color(25, 80, 130), Color(150, 200, 255))
+
+        val collapseBtn = JButton("\u25BC Hide")
+        collapseBtn.font = collapseBtn.font.deriveFont(10f)
+        collapseBtn.isBorderPainted = false
+        collapseBtn.isContentAreaFilled = false
+
+        headerPanel.add(headerLabel, BorderLayout.WEST)
+        headerPanel.add(collapseBtn, BorderLayout.EAST)
+
+        wrapper.add(headerPanel, BorderLayout.NORTH)
+
+        // Content panel (entity details)
+        val contentPanel = JPanel()
+        contentPanel.layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
+        contentPanel.isOpaque = false
+
+        for (entity in entities) {
+            val entityPanel = JPanel(BorderLayout(4, 2))
+            entityPanel.isOpaque = false
+            entityPanel.border = BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 3, 0, 0,
+                    JBColor(Color(100, 149, 237), Color(100, 149, 237))),
+                BorderFactory.createEmptyBorder(4, 8, 4, 4)
+            )
+
+            val entityHeader = JBLabel(
+                "<html><b>${entity.name}</b>" +
+                        (entity.table_name?.let { " <i>(table: $it)</i>" } ?: "") +
+                        "</html>"
+            )
+            entityHeader.font = entityHeader.font.deriveFont(11.5f)
+
+            val fieldsText = entity.fields.joinToString(", ") { f ->
+                val attrs = mutableListOf<String>()
+                if (f.primary_key == true) attrs.add("PK")
+                if (f.unique == true) attrs.add("UQ")
+                val attrStr = if (attrs.isNotEmpty()) " [${attrs.joinToString()}]" else ""
+                "${f.name}: ${f.type}$attrStr"
+            }
+            val fieldsLabel = JBLabel("<html><small>Fields: $fieldsText</small></html>")
+            fieldsLabel.foreground = JBColor.GRAY
+
+            entityPanel.add(entityHeader, BorderLayout.NORTH)
+            entityPanel.add(fieldsLabel, BorderLayout.CENTER)
+
+            contentPanel.add(entityPanel)
+            contentPanel.add(Box.createVerticalStrut(3))
+        }
+
+        // Show existing relationships
+        if (relationships.isNotEmpty()) {
+            val relLabel = JBLabel(
+                "<html><small><b>Relationships:</b> " +
+                        relationships.joinToString("; ") { r ->
+                            "${r.from} → ${r.to} (${r.type})" +
+                                    (r.mapped_by?.let { " mappedBy=$it" } ?: "")
+                        } +
+                        "</small></html>"
+            )
+            relLabel.foreground = JBColor(Color(120, 120, 120), Color(160, 160, 160))
+            relLabel.border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
+            contentPanel.add(relLabel)
+        }
+
+        val scrollContent = JBScrollPane(contentPanel)
+        scrollContent.preferredSize = Dimension(880, 120)
+        scrollContent.border = BorderFactory.createEmptyBorder()
+        wrapper.add(scrollContent, BorderLayout.CENTER)
+
+        // Note at bottom
+        val noteLabel = JBLabel(
+            "<html><small>\u26A0 These entities already exist in your project. " +
+                    "New entities you define below must have different names.</small></html>"
+        )
+        noteLabel.foreground = JBColor(Color(180, 120, 40), Color(255, 200, 100))
+        wrapper.add(noteLabel, BorderLayout.SOUTH)
+
+        // Collapse toggle behavior
+        collapseBtn.addActionListener {
+            scrollContent.isVisible = !scrollContent.isVisible
+            noteLabel.isVisible = scrollContent.isVisible
+            collapseBtn.text = if (scrollContent.isVisible) "\u25BC Hide" else "\u25B6 Show"
+            wrapper.revalidate()
+            wrapper.repaint()
+        }
+
+        return wrapper
     }
 
     // ─── Entity Tab Management ───────────────────────────────────────
@@ -263,7 +396,25 @@ class EntityDesignerDialog(
                     return ValidationInfo("All fields in '${entity.name}' must have a name.")
                 }
             }
+            // Prevent clashes with existing project entities
+            if (entity.name.lowercase() in existingEntityNames) {
+                return ValidationInfo(
+                    "Entity '${entity.name}' already exists in the project. " +
+                    "Choose a different name to avoid conflicts."
+                )
+            }
         }
+
+        // Check for duplicate new entity names
+        val newNames = entities.map { it.name.lowercase() }
+        val duplicates = newNames.groupBy { it }.filter { it.value.size > 1 }.keys
+        if (duplicates.isNotEmpty()) {
+            return ValidationInfo(
+                "Duplicate entity names: ${duplicates.joinToString(", ")}. " +
+                "Each entity must have a unique name."
+            )
+        }
+
         return null
     }
 

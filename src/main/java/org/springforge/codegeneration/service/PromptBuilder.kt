@@ -1,5 +1,6 @@
 package org.springforge.codegeneration.service
 
+import org.springforge.codegeneration.analysis.ExistingEntityExtractor
 import org.springforge.codegeneration.analysis.LayerRole
 import org.springforge.codegeneration.analysis.ProjectAnalysisResult
 import org.springforge.codegeneration.parser.InputModel
@@ -25,10 +26,15 @@ object PromptBuilder {
      *   generation requirements.
      * - We NEVER invent new folders, sub-folders, or class types
      *   that the project structure does not support.
+     *
+     * @param existingEntities Optional: entities already present in the project.
+     *        When provided, the prompt instructs the LLM to NOT regenerate these
+     *        and to properly reference them in new code.
      */
     fun buildPrompt(
         yamlModel: InputModel,
-        analysis: ProjectAnalysisResult
+        analysis: ProjectAnalysisResult,
+        existingEntities: ExistingEntityExtractor.ExtractionResult? = null
     ): String {
 
         val sb = StringBuilder()
@@ -55,21 +61,10 @@ object PromptBuilder {
 
         // ── SECTION 2 — OUTPUT FORMAT ──
         val examplePkg = components.firstOrNull()?.pkg ?: "$basePackage.model"
-        sb.appendLine("## OUTPUT FORMAT (MANDATORY)")
-        sb.appendLine("Return each file using EXACTLY this delimiter format:")
-        sb.appendLine()
-        sb.appendLine("===FILE: src/main/java/${pathOf(examplePkg)}/Example.java===")
-        sb.appendLine("package $examplePkg;")
-        sb.appendLine("// ... full Java code ...")
-        sb.appendLine("===END_FILE===")
-        sb.appendLine()
-        sb.appendLine("Rules for output:")
-        sb.appendLine("- Every file MUST start with ===FILE: <relative-path>===")
-        sb.appendLine("- Every file MUST end with ===END_FILE===")
-        sb.appendLine("- The <relative-path> must start with src/main/java/ and use / separators")
-        sb.appendLine("- Each file must contain a complete, compilable Java class")
-        sb.appendLine("- Do NOT wrap output in markdown code fences")
-        sb.appendLine("- Do NOT add any text before the first ===FILE: or after the last ===END_FILE===")
+        sb.appendLine("## OUTPUT FORMAT")
+        sb.appendLine("Return each file as: ===FILE: src/main/java/${pathOf(examplePkg)}/Example.java=== ... ===END_FILE===")
+        sb.appendLine("- Path starts with src/main/java/, uses / separators")
+        sb.appendLine("- Complete compilable Java class per file, no markdown fences, no commentary")
         sb.appendLine()
 
         // ── SECTION 3 — PROJECT CONTEXT ──
@@ -89,47 +84,56 @@ object PromptBuilder {
             }
         }
 
-        // Show current dependencies
+        // Show current dependencies (compact: group:artifact only, skip versions)
         if (analysis.dependencies.isNotEmpty()) {
-            sb.appendLine("- Current Dependencies:")
-            analysis.dependencies.forEach { dep ->
-                val ver = dep.version?.let { ":$it" } ?: ""
-                val scope = dep.scope?.let { " ($it)" } ?: ""
-                sb.appendLine("    ${dep.groupId}:${dep.artifactId}$ver$scope")
-            }
+            sb.appendLine("- Dependencies: ${analysis.dependencies.joinToString(", ") { "${it.groupId}:${it.artifactId}" }}")
         }
         sb.appendLine()
 
-        // ── SECTION 4 — EXACT PACKAGE MAPPING (dynamic) ──
-        sb.appendLine("## EXACT PACKAGE MAPPING (YOU MUST FOLLOW THIS)")
-        sb.appendLine("These packages are derived ONLY from EXISTING project folders and sub-folders.")
-        sb.appendLine("You MUST place each generated class into the EXACT package listed below.")
-        sb.appendLine("Do NOT generate any class types not listed in this table.")
+        // ── SECTION 4 — EXISTING ENTITIES (compact, reference-only) ──
+        if (existingEntities != null && !existingEntities.isEmpty) {
+            sb.appendLine("## EXISTING ENTITIES — DO NOT REGENERATE, import and reference only")
+            sb.appendLine()
+
+            existingEntities.entities.forEach { entity ->
+                val table = entity.table_name?.let { " (table=$it)" } ?: ""
+                val fields = entity.fields.joinToString(", ") { f ->
+                    val flags = mutableListOf<String>()
+                    if (f.primary_key == true) flags.add("PK")
+                    if (f.unique == true) flags.add("UQ")
+                    if (f.nullable == false) flags.add("NN")
+                    val flagStr = if (flags.isNotEmpty()) "[${flags.joinToString()}]" else ""
+                    "${f.name}:${f.type}$flagStr"
+                }
+                sb.appendLine("- ${entity.name}$table { $fields }")
+            }
+
+            if (existingEntities.relationships.isNotEmpty()) {
+                sb.appendLine("Relationships: " + existingEntities.relationships.joinToString("; ") { r ->
+                    val mb = r.mapped_by?.let { " mappedBy=$it" } ?: ""
+                    "${r.from}->${r.to}:${r.type}$mb"
+                })
+            }
+            sb.appendLine()
+        }
+
+        // ── SECTION 5 — EXACT PACKAGE MAPPING (dynamic) ──
+        sb.appendLine("## PACKAGE MAPPING (use these EXACT packages)")
         sb.appendLine()
-        sb.appendLine("| Class Type               | Package                           | File Path                                         |")
-        sb.appendLine("|--------------------------|-----------------------------------|----------------------------------------------------|")
         for (comp in components) {
-            sb.appendLine("| ${comp.classType.padEnd(24)} | ${comp.pkg.padEnd(33)} | src/main/java/${pathOf(comp.pkg).padEnd(37)}/ |")
+            sb.appendLine("- ${comp.classType} → ${comp.pkg}")
         }
         sb.appendLine()
-        sb.appendLine("⚠ DO NOT create ANY new folders or sub-folders that do not already exist.")
-        sb.appendLine("⚠ The ONLY allowed top-level folders under $basePackage are: ${analysis.layers.joinToString(", ")}.")
+        val allowedFolders = analysis.layers.joinToString(", ")
         val existingSubFolders = analysis.detectedLayers
             .filter { it.subFolders.isNotEmpty() }
             .flatMap { layer -> layer.subFolders.map { "${layer.folderName}/$it" } }
-        if (existingSubFolders.isNotEmpty()) {
-            sb.appendLine("⚠ The ONLY allowed sub-folders are: ${existingSubFolders.joinToString(", ")}.")
-        } else {
-            sb.appendLine("⚠ There are NO sub-folders. Do NOT create any sub-folders.")
-        }
-        sb.appendLine("⚠ Do NOT generate class types not listed in the table above (e.g. do NOT generate ${
-            listOf("Repository", "DTO", "Exception", "Service Implementation").filter { type ->
-                !components.any { c -> c.classType.contains(type, ignoreCase = true) }
-            }.joinToString(", ")
-        } unless listed above).")
+        val subNote = if (existingSubFolders.isNotEmpty())
+            " Allowed sub-folders: ${existingSubFolders.joinToString(", ")}." else " No sub-folders exist."
+        sb.appendLine("Only use folders: $allowedFolders.$subNote Do NOT create new folders or class types not listed above.")
         sb.appendLine()
 
-        // ── SECTION 5 — DOMAIN MODEL ──
+        // ── SECTION 6 — DOMAIN MODEL ──
         sb.appendLine("## DOMAIN MODEL (from input.yml)")
         sb.appendLine()
 
@@ -168,7 +172,7 @@ object PromptBuilder {
             sb.appendLine()
         }
 
-        // ── SECTION 6 — GENERATION REQUIREMENTS (dynamic) ──
+        // ── SECTION 7 — GENERATION REQUIREMENTS (dynamic) ──
         sb.appendLine("## GENERATION REQUIREMENTS")
         sb.appendLine()
         sb.appendLine("For EACH entity defined above, generate the following files.")
@@ -181,37 +185,38 @@ object PromptBuilder {
             sb.appendLine()
         }
 
-        // ── SECTION 7 — CONSTRAINTS ──
+        // ── SECTION 8 — CONSTRAINTS ──
         sb.appendLine("## CONSTRAINTS")
-        sb.appendLine("- Use Spring Boot 3.x / Jakarta EE (jakarta.persistence.*, NOT javax.persistence.*)")
-        sb.appendLine("- Every class MUST have a package declaration that EXACTLY matches its file path")
-        sb.appendLine("- All imports must be explicit (no wildcard imports)")
-        sb.appendLine("- DO NOT create ANY folders or sub-folders that don't already exist in the project")
-        sb.appendLine("- The ONLY allowed top-level packages: ${analysis.layers.joinToString(", ")}")
+        sb.appendLine("- Spring Boot 3.x / Jakarta EE (jakarta.persistence.*, NOT javax.persistence.*)")
+        sb.appendLine("- Package declarations must match file paths exactly; explicit imports only (no wildcards)")
         if (!analysis.hasDependency("org.springframework.boot", "spring-boot-starter-validation")) {
-            sb.appendLine("- Do NOT use @Valid, @Validated, or any jakarta.validation.* imports (spring-boot-starter-validation is NOT in the project)")
+            sb.appendLine("- No @Valid/@Validated/jakarta.validation.* (starter-validation not present)")
         }
-        sb.appendLine("- Do NOT use any import that is not available from the project's existing dependencies")
-        sb.appendLine("- Do NOT generate pom.xml, build.gradle, or any build configuration files. Only generate .java source files.")
+        sb.appendLine("- Only .java source files; no pom.xml/build.gradle")
 
         // Dynamic wiring chain based on what exists
         val wiringChain = mutableListOf<String>()
         if (has("REST Controller")) wiringChain.add("Controller")
-        if (has("Service Interface")) wiringChain.add("Service Interface")
-        if (has("Service Implementation")) wiringChain.add("Service Impl")
+        if (has("Service Interface")) wiringChain.add("Service")
+        if (has("Service Implementation")) wiringChain.add("ServiceImpl")
         if (has("Repository Interface")) wiringChain.add("Repository")
         if (has("JPA Entity")) wiringChain.add("Entity")
         if (wiringChain.size > 1) {
             sb.appendLine("- Wiring: ${wiringChain.joinToString(" → ")}")
         }
-
         if (has("JPA Entity")) {
-            sb.appendLine("- Handle bidirectional relationships with @JsonBackReference / @JsonManagedReference to prevent infinite recursion")
+            sb.appendLine("- Use @JsonBackReference/@JsonManagedReference for bidirectional relationships")
         }
         if (has("Service Implementation")) {
-            sb.appendLine("- Use @Transactional on service implementation methods that modify data")
+            sb.appendLine("- @Transactional on data-modifying service methods")
         }
         sb.appendLine("- Generated code must compile without errors when the project is built")
+
+        // Add constraint about existing entities if present
+        if (existingEntities != null && !existingEntities.isEmpty) {
+            sb.appendLine("- Do NOT regenerate existing entities (${existingEntities.entities.joinToString(", ") { it.name }}); only generate NEW entity code, import existing ones as-is")
+        }
+
         sb.appendLine()
 
         sb.appendLine("Generate ALL files now using the ===FILE: ...=== / ===END_FILE=== format.")
