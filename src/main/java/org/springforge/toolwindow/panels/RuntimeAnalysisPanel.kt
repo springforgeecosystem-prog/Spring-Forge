@@ -99,24 +99,27 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
     // ─────────────────────────────────────────────────────────────
 
     /**
-     * Returns null if the input looks like a valid Java stacktrace,
+     * Returns null if the input looks like a valid error of any kind,
      * or a user-friendly error message string if it does not.
      *
-     * A valid stacktrace must contain AT LEAST ONE of:
-     *   - An exception line:  SomeException: message  OR  SomeException at ...
-     *   - A stack frame:      at com.example.Class.method(File.java:42)
-     *   - A caused-by line:   Caused by: ...
+     * Accepts:
+     *   - Runtime stacktraces:  SomeException: message / at com.example.Class.method(File.java:42)
+     *   - Compile errors:       java: cannot find symbol / error: ... / File.java:42: error: ...
+     *   - Build errors:         BUILD FAILED / FAILURE / compilation error
+     *   - Gradle/Maven errors:  > Task :compileJava FAILED / [ERROR]
+     *   - File-path errors:     path/File.java:42:10  (file:line:col format)
      */
     private fun validateStacktrace(text: String): String? {
         if (text.isBlank()) {
-            return "Empty input — please paste a Java error stacktrace."
+            return "Empty input — please paste an error or stacktrace."
         }
 
         // Too short to be meaningful
-        if (text.length < 20) {
-            return "Input is too short to be a stacktrace. Please paste the full error output from your IDE console or logs."
+        if (text.length < 10) {
+            return "Input is too short. Please paste the full error output from your IDE console or logs."
         }
 
+        // Runtime exception / stack trace patterns
         val hasExceptionLine = Regex(
             """([A-Za-z_${'$'}][A-Za-z0-9_${'$'}]*\.)*[A-Za-z_${'$'}][A-Za-z0-9_${'$'}]*Exception[:\s]|""" +
             """([A-Za-z_${'$'}][A-Za-z0-9_${'$'}]*\.)*[A-Za-z_${'$'}][A-Za-z0-9_${'$'}]*Error[:\s]|""" +
@@ -129,26 +132,65 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
             RegexOption.MULTILINE
         ).containsMatchIn(text)
 
-        return when {
-            // Looks like plain code
-            Regex("""^\s*(public|private|protected|class|fun|import|package)\s""", RegexOption.MULTILINE)
-                .containsMatchIn(text) && !hasExceptionLine && !hasStackFrame ->
-                "This looks like source code, not an error log. Please paste the exception stacktrace from your console or logs"
+        // Compile error patterns (javac / IDE compiler output)
+        val hasCompileError = Regex(
+            """java:\s+(cannot find symbol|incompatible types|unreported exception|method .+ cannot be applied)|""" +
+            """error:\s+.{5,}|""" +
+            """cannot find symbol|""" +
+            """symbol:\s+(method|variable|class)\s+""",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(text)
 
-            // Looks like plain English / prose
-            !hasExceptionLine && !hasStackFrame && Regex("""^[A-Z][a-z].*[.?!]$""", RegexOption.MULTILINE)
-                .containsMatchIn(text) ->
-                "This looks like plain text, not an error log. Please paste the exception stacktrace from your console or logs"
+        // File-path:line:col error format (e.g. File.java:42:10 or path/File.java:42)
+        val hasFileLineError = Regex(
+            """[\w/\\]+\.(?:java|kt|xml|gradle|properties):\d+""",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(text)
 
-            // Has some exception-like word but no stack frames — maybe partial paste
-            hasExceptionLine && !hasStackFrame ->
-                "This looks like a partial error message without stack frames. Please paste the full stacktrace including the 'at ...' lines from your console."
+        // Build tool errors (Gradle / Maven)
+        val hasBuildError = Regex(
+            """BUILD FAILED|FAILURE:|COMPILATION ERROR|""" +
+            """>\s+Task\s+:\S+\s+FAILED|""" +
+            """\[ERROR]|""" +
+            """FAILED\s*$""",
+            setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
+        ).containsMatchIn(text)
 
-            // No recognizable stacktrace patterns at all
-            !hasExceptionLine && !hasStackFrame ->
-                "This doesn't look like a Java stacktrace. Please paste the error output from your IDE Run/Debug console. It should contain lines like:SomeException: message at com.example.Class.method(File.java:42)"
+        // Spring Boot / application log errors
+        val hasAppError = Regex(
+            """APPLICATION FAILED TO START|""" +
+            """Failed to configure|""" +
+            """Process finished with exit code [^0]|""" +
+            """\bERROR\b.*---|""" +
+            """Description:\s*\n|""" +
+            """Reason:\s+\S|""" +
+            """Action:\s*\n|""" +
+            """FailureAnalysisReporter|""" +
+            """BeanCreationException|""" +
+            """UnsatisfiedDependencyException|""" +
+            """ApplicationContextException|""" +
+            """Bean .+ could not be|""" +
+            """Failed to (start|load|bind|instantiate)|""" +
+            """No qualifying bean|""" +
+            """port \d+ was already in use""",
+            setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
+        ).containsMatchIn(text)
 
-            else -> null // valid
+        // If any recognized error pattern matches, accept it
+        if (hasExceptionLine || hasStackFrame || hasCompileError || hasFileLineError || hasBuildError || hasAppError) {
+            return null // valid
+        }
+
+        // Reject only clearly non-error input: source code with no error hints
+        val looksLikeCode = Regex(
+            """^\s*(public|private|protected|class|fun|import|package)\s""",
+            RegexOption.MULTILINE
+        ).containsMatchIn(text)
+
+        return if (looksLikeCode) {
+            "This looks like source code, not an error log. Please paste the error output from your console or logs."
+        } else {
+            null // be permissive — let the AI backend decide if it's useful
         }
     }
 
