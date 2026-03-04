@@ -1,73 +1,65 @@
 package org.springforge.cicdassistant.config
 
-import java.io.File
-
 /**
- * Configuration manager for environment variables
- * Loads configuration from .env file or system environment
+ * Configuration manager for environment variables.
+ *
+ * The .env file from the plugin development root is bundled INTO the JAR
+ * at build time (via processResources in build.gradle.kts). This means
+ * the plugin always carries its own config — no searching open projects,
+ * no walking up directory trees.
+ *
+ * Resolution order (first non-null wins):
+ *   1. System environment variable  (allows runtime overrides / CI)
+ *   2. Value from bundled .env resource inside the JAR
+ *   3. Provided default value
  */
 object EnvironmentConfig {
 
-    private val envVariables: Map<String, String> by lazy {
-        loadEnvFile()
+    /**
+     * Variables loaded from the .env file bundled inside the JAR.
+     */
+    private val bundledEnvVariables: Map<String, String> by lazy {
+        loadBundledEnv()
     }
 
     /**
-     * Load environment variables from .env file
-     * Tries multiple locations to work in both development and sandbox environments
+     * Load .env from the classpath (bundled into the JAR by Gradle).
      */
-    private fun loadEnvFile(): Map<String, String> {
+    private fun loadBundledEnv(): Map<String, String> {
         val envMap = mutableMapOf<String, String>()
-
-        // Try multiple locations
-        val possibleLocations = listOf(
-            File(System.getProperty("user.dir"), ".env"),  // Current directory
-            File(System.getProperty("user.home"), ".springforge.env"),  // User home
-            File("D:\\SLIIT\\SpringForge\\Spring-Forge", ".env"),  // Absolute path to project
-            File(".env")  // Relative to execution
-        )
-
-        var foundFile: File? = null
-        for (location in possibleLocations) {
-            if (location.exists() && location.isFile) {
-                foundFile = location
-                break
-            }
-        }
-
-        if (foundFile != null) {
-            try {
-                println("Loading .env from: ${foundFile.absolutePath}")
-                foundFile.readLines().forEach { line ->
-                    val trimmedLine = line.trim()
-                    // Skip comments and empty lines
-                    if (trimmedLine.isNotEmpty() && !trimmedLine.startsWith("#")) {
-                        val parts = trimmedLine.split("=", limit = 2)
-                        if (parts.size == 2) {
-                            val key = parts[0].trim()
-                            val value = parts[1].trim()
-                            envMap[key] = value
+        try {
+            val stream = EnvironmentConfig::class.java.classLoader.getResourceAsStream(".env")
+            if (stream != null) {
+                stream.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        val trimmed = line.trim()
+                        if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                            val parts = trimmed.split("=", limit = 2)
+                            if (parts.size == 2) {
+                                envMap[parts[0].trim()] = parts[1].trim()
+                            }
                         }
                     }
                 }
-                println("Loaded ${envMap.size} environment variables from .env file")
-            } catch (e: Exception) {
-                println("Warning: Could not read .env file: ${e.message}")
+                println("[SpringForge] Loaded ${envMap.size} variables from bundled .env")
+            } else {
+                System.err.println("[SpringForge] No bundled .env found in JAR resources.")
+                System.err.println("[SpringForge] Make sure .env exists in project root when building.")
             }
-        } else {
-            println("Warning: .env file not found in any of the expected locations:")
-            possibleLocations.forEach { println("  - ${it.absolutePath}") }
-            println("Falling back to system environment variables only")
+        } catch (e: Exception) {
+            System.err.println("[SpringForge] Failed to read bundled .env: ${e.message}")
         }
-
         return envMap
     }
 
     /**
-     * Get environment variable from .env or system environment
+     * Resolve an environment variable.
+     * Priority: System env → bundled .env → default.
      */
     private fun getEnv(key: String, defaultValue: String? = null): String? {
-        return envVariables[key] ?: System.getenv(key) ?: defaultValue
+        return System.getenv(key)
+            ?: bundledEnvVariables[key]
+            ?: defaultValue
     }
 
     // SpringForge API Gateway Configuration
@@ -148,12 +140,10 @@ object EnvironmentConfig {
                 appendLine("Missing required environment variable: SPRINGFORGE_API_URL")
                 appendLine()
                 appendLine("Debugging info:")
-                appendLine("  Current directory: ${System.getProperty("user.dir")}")
-                appendLine("  User home: ${System.getProperty("user.home")}")
-                appendLine("  Loaded ${envVariables.size} variables from .env file")
+                appendLine("  Bundled .env variables loaded: ${bundledEnvVariables.size}")
                 appendLine()
                 appendLine("Solutions:")
-                appendLine("  1. Add SPRINGFORGE_API_URL=<your API Gateway URL> to your .env file")
+                appendLine("  1. Make sure .env exists in the plugin project root before building")
                 appendLine("  2. Or set SPRINGFORGE_API_URL as a system environment variable")
             }
             throw IllegalStateException(errorMessage)
