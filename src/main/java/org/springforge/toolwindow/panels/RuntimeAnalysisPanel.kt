@@ -129,24 +129,30 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
             RegexOption.MULTILINE
         ).containsMatchIn(text)
 
+        val isSpringBootFailureBanner = text.contains("APPLICATION FAILED TO START") ||
+                (text.contains("Description:") && text.contains("Action:"))
+
         return when {
-            // Looks like plain code
+            // 1. Explicitly allow Spring Boot Failure Analyzer outputs
+            isSpringBootFailureBanner -> null // valid
+
+            // 2. Looks like plain code
             Regex("""^\s*(public|private|protected|class|fun|import|package)\s""", RegexOption.MULTILINE)
-                .containsMatchIn(text) && !hasExceptionLine && !hasStackFrame ->
+                    .containsMatchIn(text) && !hasExceptionLine && !hasStackFrame ->
                 "This looks like source code, not an error log. Please paste the exception stacktrace from your console or logs"
 
-            // Looks like plain English / prose
+            // 3. Looks like plain English / prose
             !hasExceptionLine && !hasStackFrame && Regex("""^[A-Z][a-z].*[.?!]$""", RegexOption.MULTILINE)
-                .containsMatchIn(text) ->
+                    .containsMatchIn(text) ->
                 "This looks like plain text, not an error log. Please paste the exception stacktrace from your console or logs"
 
-            // Has some exception-like word but no stack frames — maybe partial paste
+            // 4. Has some exception-like word but no stack frames — maybe partial paste
             hasExceptionLine && !hasStackFrame ->
                 "This looks like a partial error message without stack frames. Please paste the full stacktrace including the 'at ...' lines from your console."
 
-            // No recognizable stacktrace patterns at all
+            // 5. No recognizable stacktrace patterns at all
             !hasExceptionLine && !hasStackFrame ->
-                "This doesn't look like a Java stacktrace. Please paste the error output from your IDE Run/Debug console. It should contain lines like:SomeException: message at com.example.Class.method(File.java:42)"
+                "This doesn't look like a Java/Spring stacktrace. Please paste the error output from your IDE Run/Debug console. It should contain lines like: SomeException: message at com.example.Class.method(File.java:42) or a Spring Boot failure banner."
 
             else -> null // valid
         }
