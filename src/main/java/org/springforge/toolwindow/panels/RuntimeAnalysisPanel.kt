@@ -133,65 +133,32 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
             RegexOption.MULTILINE
         ).containsMatchIn(text)
 
-        // Compile error patterns (javac / IDE compiler output)
-        val hasCompileError = Regex(
-            """java:\s+(cannot find symbol|incompatible types|unreported exception|method .+ cannot be applied)|""" +
-            """error:\s+.{5,}|""" +
-            """cannot find symbol|""" +
-            """symbol:\s+(method|variable|class)\s+""",
-            RegexOption.IGNORE_CASE
-        ).containsMatchIn(text)
+        val isSpringBootFailureBanner = text.contains("APPLICATION FAILED TO START") ||
+                (text.contains("Description:") && text.contains("Action:"))
 
-        // File-path:line:col error format (e.g. File.java:42:10 or path/File.java:42)
-        val hasFileLineError = Regex(
-            """[\w/\\]+\.(?:java|kt|xml|gradle|properties):\d+""",
-            RegexOption.IGNORE_CASE
-        ).containsMatchIn(text)
+        return when {
+            // 1. Explicitly allow Spring Boot Failure Analyzer outputs
+            isSpringBootFailureBanner -> null // valid
 
-        // Build tool errors (Gradle / Maven)
-        val hasBuildError = Regex(
-            """BUILD FAILED|FAILURE:|COMPILATION ERROR|""" +
-            """>\s+Task\s+:\S+\s+FAILED|""" +
-            """\[ERROR]|""" +
-            """FAILED\s*$""",
-            setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
-        ).containsMatchIn(text)
+            // 2. Looks like plain code
+            Regex("""^\s*(public|private|protected|class|fun|import|package)\s""", RegexOption.MULTILINE)
+                    .containsMatchIn(text) && !hasExceptionLine && !hasStackFrame ->
+                "This looks like source code, not an error log. Please paste the exception stacktrace from your console or logs"
 
-        // Spring Boot / application log errors
-        val hasAppError = Regex(
-            """APPLICATION FAILED TO START|""" +
-            """Failed to configure|""" +
-            """Process finished with exit code [^0]|""" +
-            """\bERROR\b.*---|""" +
-            """Description:\s*\n|""" +
-            """Reason:\s+\S|""" +
-            """Action:\s*\n|""" +
-            """FailureAnalysisReporter|""" +
-            """BeanCreationException|""" +
-            """UnsatisfiedDependencyException|""" +
-            """ApplicationContextException|""" +
-            """Bean .+ could not be|""" +
-            """Failed to (start|load|bind|instantiate)|""" +
-            """No qualifying bean|""" +
-            """port \d+ was already in use""",
-            setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
-        ).containsMatchIn(text)
+            // 3. Looks like plain English / prose
+            !hasExceptionLine && !hasStackFrame && Regex("""^[A-Z][a-z].*[.?!]$""", RegexOption.MULTILINE)
+                    .containsMatchIn(text) ->
+                "This looks like plain text, not an error log. Please paste the exception stacktrace from your console or logs"
 
-        // If any recognized error pattern matches, accept it
-        if (hasExceptionLine || hasStackFrame || hasCompileError || hasFileLineError || hasBuildError || hasAppError) {
-            return null // valid
-        }
+            // 4. Has some exception-like word but no stack frames — maybe partial paste
+            hasExceptionLine && !hasStackFrame ->
+                "This looks like a partial error message without stack frames. Please paste the full stacktrace including the 'at ...' lines from your console."
 
-        // Reject only clearly non-error input: source code with no error hints
-        val looksLikeCode = Regex(
-            """^\s*(public|private|protected|class|fun|import|package)\s""",
-            RegexOption.MULTILINE
-        ).containsMatchIn(text)
+            // 5. No recognizable stacktrace patterns at all
+            !hasExceptionLine && !hasStackFrame ->
+                "This doesn't look like a Java/Spring stacktrace. Please paste the error output from your IDE Run/Debug console. It should contain lines like: SomeException: message at com.example.Class.method(File.java:42) or a Spring Boot failure banner."
 
-        return if (looksLikeCode) {
-            "This looks like source code, not an error log. Please paste the error output from your console or logs."
-        } else {
-            null // be permissive — let the AI backend decide if it's useful
+            else -> null // valid
         }
     }
 
