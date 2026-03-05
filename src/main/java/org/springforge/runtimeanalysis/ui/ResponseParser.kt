@@ -14,7 +14,7 @@ object ResponseParser {
             val rootCause: String,
             val suggestedFix: String,
             val codeSnippet: String,
-            val references: List<AnalysisResultDialog.Reference>,
+            val references: List<Reference>,
             val notes: String?
     )
 
@@ -42,11 +42,11 @@ object ResponseParser {
         val notes = extractNotes(answer)
 
         // Parse references from retrieved_docs
-        val references = mutableListOf<AnalysisResultDialog.Reference>()
+        val references = mutableListOf<Reference>()
         retrievedDocs?.forEach { doc ->
             val docObj = doc.asJsonObject
             references.add(
-                    AnalysisResultDialog.Reference(
+                    Reference(
                             title = docObj.get("title").asString,
                             url = docObj.get("url").asString
                     )
