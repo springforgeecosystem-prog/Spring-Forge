@@ -17,6 +17,7 @@ import org.springforge.codegeneration.parser.InputModel
 import org.springforge.codegeneration.parser.YamlParser
 import org.springforge.codegeneration.parser.YamlWriter
 import org.springforge.codegeneration.service.*
+import org.springforge.cicdassistant.audit.AuditService
 import org.springforge.codegeneration.validation.ValidationResult
 import org.springforge.codegeneration.validation.YamlValidator
 import java.io.File
@@ -71,6 +72,7 @@ class GenerateCodeAction : AnAction("Generate Code") {
         // ── 3. RUN FULL PIPELINE IN BACKGROUND ───────────────────────────
         object : Task.Backgroundable(project, "SpringForge: Generating Code...", true) {
             override fun run(indicator: ProgressIndicator) {
+                val startMs = System.currentTimeMillis()
                 try {
                     // 3a. Analyze project context
                     indicator.text = "Analyzing project structure..."
@@ -160,6 +162,14 @@ class GenerateCodeAction : AnAction("Generate Code") {
                         buildFile = depResult.buildFile
                     )
                     GenerationResultService.getInstance(project).publish(genResult)
+                    AuditService.getInstance(project).logCodeGeneration(
+                        filesGenerated = generatedFiles.size,
+                        filesWritten   = writeResult.written.size,
+                        filesSkipped   = writeResult.skipped.size,
+                        fileErrors     = writeResult.errors.size,
+                        durationMs     = System.currentTimeMillis() - startMs,
+                        success        = true
+                    )
 
                     // // Open the prompt file for reference
                     // ApplicationManager.getApplication().invokeLater {
@@ -172,11 +182,21 @@ class GenerateCodeAction : AnAction("Generate Code") {
                 } catch (ex: IllegalStateException) {
                     // API key missing
                     notify(project, ex.message ?: "Configuration error", NotificationType.ERROR)
+                    AuditService.getInstance(project).logCodeGeneration(
+                        filesGenerated = 0, filesWritten = 0, filesSkipped = 0, fileErrors = 0,
+                        durationMs = System.currentTimeMillis() - startMs,
+                        success    = false, errorMsg = ex.message
+                    )
                 } catch (ex: Exception) {
                     notify(
                         project,
                         "Code generation failed: ${ex.message}",
                         NotificationType.ERROR
+                    )
+                    AuditService.getInstance(project).logCodeGeneration(
+                        filesGenerated = 0, filesWritten = 0, filesSkipped = 0, fileErrors = 0,
+                        durationMs = System.currentTimeMillis() - startMs,
+                        success    = false, errorMsg = ex.message
                     )
                 }
             }

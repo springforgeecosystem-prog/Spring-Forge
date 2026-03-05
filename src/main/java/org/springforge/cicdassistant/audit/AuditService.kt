@@ -173,6 +173,99 @@ class AuditService(private val project: Project) : Disposable {
         )
     )
 
+    /**
+     * Code Generation module — logs a Gemini-powered code generation run.
+     * Field mapping:
+     *   filesCount   = total files from LLM
+     *   insightCount = files actually written
+     *   issuesWarn   = files skipped (already exist)
+     *   issuesError  = files that failed to write
+     *   sourceType   = "GEMINI"
+     *   artifacts    = "java_files"
+     */
+    fun logCodeGeneration(
+        filesGenerated: Int,
+        filesWritten: Int,
+        filesSkipped: Int,
+        fileErrors: Int,
+        durationMs: Long,
+        success: Boolean,
+        errorMsg: String? = null
+    ) = writeAsync(
+        AuditEvent(
+            eventType    = AuditEventType.CODE_GENERATION,
+            projectPath  = project.basePath,
+            sourceType   = "GEMINI",
+            artifacts    = "java_files",
+            filesCount   = filesGenerated,
+            insightCount = filesWritten,
+            issuesWarn   = filesSkipped,
+            issuesError  = fileErrors,
+            success      = success,
+            errorMsg     = errorMsg,
+            durationMs   = durationMs
+        )
+    )
+
+    /**
+     * Quality Scan module — logs an ML + Gemini quality analysis run.
+     * Field mapping:
+     *   filesCount   = total files analyzed
+     *   issuesWarn   = total violations found
+     *   issuesError  = critical violations
+     *   insightCount = AI fix suggestions generated
+     *   sourceType   = architecture pattern selected (e.g. "Layered")
+     *   artifacts    = "ml_analysis"
+     */
+    fun logQualityScan(
+        filesAnalyzed: Int,
+        totalViolations: Int,
+        criticalViolations: Int,
+        aiFixCount: Int,
+        architecture: String,
+        durationMs: Long,
+        success: Boolean,
+        errorMsg: String? = null
+    ) = writeAsync(
+        AuditEvent(
+            eventType    = AuditEventType.QUALITY_SCAN,
+            projectPath  = project.basePath,
+            sourceType   = architecture,
+            artifacts    = "ml_analysis",
+            filesCount   = filesAnalyzed,
+            issuesWarn   = totalViolations,
+            issuesError  = criticalViolations,
+            insightCount = aiFixCount,
+            success      = success,
+            errorMsg     = errorMsg,
+            durationMs   = durationMs
+        )
+    )
+
+    /**
+     * Runtime Analysis module — logs a stacktrace/error analysis run.
+     * Field mapping:
+     *   filesCount = 1 (one stacktrace submitted)
+     *   artifacts  = "stacktrace"
+     *   sourceType = "MANUAL_INPUT"
+     */
+    fun logRuntimeAnalysis(
+        durationMs: Long,
+        success: Boolean,
+        errorMsg: String? = null
+    ) = writeAsync(
+        AuditEvent(
+            eventType    = AuditEventType.RUNTIME_ANALYSIS,
+            projectPath  = project.basePath,
+            sourceType   = "MANUAL_INPUT",
+            artifacts    = "stacktrace",
+            filesCount   = 1,
+            success      = success,
+            errorMsg     = errorMsg,
+            durationMs   = durationMs
+        )
+    )
+
     // ── Read API (called from UI, runs on pooled thread via caller) ─────────────
 
     fun getRecentEvents(limit: Int = 50): List<AuditEvent> {

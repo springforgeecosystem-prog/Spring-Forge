@@ -7,6 +7,7 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import org.springforge.cicdassistant.audit.AuditService
 import org.springforge.runtimeanalysis.service.RuntimeAnalysisService
 import java.awt.*
 import java.awt.datatransfer.StringSelection
@@ -246,6 +247,7 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
 
     private fun analyzeError(errorText: String) {
         showStatus("⏳  Analyzing…")
+        val startMs = System.currentTimeMillis()
 
         com.intellij.openapi.progress.ProgressManager.getInstance().run(
             object : com.intellij.openapi.progress.Task.Backgroundable(project, "SpringForge Analysis") {
@@ -256,11 +258,20 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
                             onResult = { raw ->
                                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                                     renderResult(raw)
+                                    AuditService.getInstance(project).logRuntimeAnalysis(
+                                        durationMs = System.currentTimeMillis() - startMs,
+                                        success    = true
+                                    )
                                 }
                             },
                             onError = { err ->
                                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                                     showStatus("❌  $err")
+                                    AuditService.getInstance(project).logRuntimeAnalysis(
+                                        durationMs = System.currentTimeMillis() - startMs,
+                                        success    = false,
+                                        errorMsg   = err
+                                    )
                                 }
                             }
                         )
