@@ -12,6 +12,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import org.springforge.feedback.ui.FeedbackDialog
 import org.springforge.qualityassurance.analysis.PsiFeatureExtractor
 import org.springforge.qualityassurance.model.AntiPatternDetail
 import org.springforge.qualityassurance.model.CombinedAnalysisResult
@@ -522,7 +523,10 @@ class QualityAssurancePanel(private val project: Project) : JPanel() {
                         updateTile(fixesCard,      fixes?.total_fixes?.toString() ?: "0")
                         val emoji = when { result.overall_score >= 75 -> "🟢"; result.overall_score >= 60 -> "🟠"; else -> "🔴" }
                         setStatus("$emoji  Analysis complete — ${result.overall_display}", SF.green)
-                        resetButtons(); viewReportButton.isEnabled = true; showReportDialog(result, fixes)
+                        resetButtons(); viewReportButton.isEnabled = true
+                        showReportDialog(result, fixes) {
+                            FeedbackDialog.showForModule(project, "quality-assurance", "Code Quality Analysis")
+                        }
                     }
                 } catch (ex: Exception) {
                     setStatus("❌  ${ex.message}", SF.red); resetButtons()
@@ -547,8 +551,8 @@ class QualityAssurancePanel(private val project: Project) : JPanel() {
         analyzeButton.isEnabled = true; progressBar.isVisible = false
     }
 
-    fun showReportDialog(result: CombinedAnalysisResult, fixes: ProjectFixResult?) =
-        QualityReportDialog(project, result, fixes).show()
+    fun showReportDialog(result: CombinedAnalysisResult, fixes: ProjectFixResult?, onClose: (() -> Unit)? = null) =
+        QualityReportDialog(project, result, fixes).show(onClose)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -561,7 +565,7 @@ class QualityReportDialog(
     private val fixes   : ProjectFixResult?
 ) {
 
-    fun show() {
+    fun show(onClose: (() -> Unit)? = null) {
         val frame = JFrame("SpringForge — Code Quality Report").apply {
             defaultCloseOperation = JFrame.DISPOSE_ON_CLOSE
             preferredSize = Dimension(1080, 800)
@@ -577,6 +581,16 @@ class QualityReportDialog(
                 frame.contentPane.revalidate(); frame.contentPane.repaint()
             }
         })
+
+        // Trigger callback (e.g. feedback dialog) when the report window is closed
+        if (onClose != null) {
+            frame.addWindowListener(object : java.awt.event.WindowAdapter() {
+                override fun windowClosed(e: java.awt.event.WindowEvent?) {
+                    onClose()
+                }
+            })
+        }
+
         frame.isVisible = true
     }
 

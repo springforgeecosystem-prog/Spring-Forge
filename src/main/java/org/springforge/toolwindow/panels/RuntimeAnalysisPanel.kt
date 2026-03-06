@@ -8,6 +8,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import org.springforge.cicdassistant.audit.AuditService
+import org.springforge.feedback.ui.FeedbackDialog
 import org.springforge.runtimeanalysis.service.RuntimeAnalysisService
 import java.awt.*
 import java.awt.datatransfer.StringSelection
@@ -229,6 +230,7 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
                                         durationMs = System.currentTimeMillis() - startMs,
                                         success    = true
                                     )
+                                    FeedbackDialog.showForModule(project, "runtime-analysis", "Runtime Error Analysis")
                                 }
                             },
                             onError = { err ->

@@ -24,6 +24,7 @@ import org.springforge.cicdassistant.explainability.ui.ExplainabilityPanel
 import org.springforge.cicdassistant.validation.ValidationResult
 import org.springforge.cicdassistant.validation.ValidationService
 import org.springforge.cicdassistant.validation.ui.ValidationResultsPanel
+import org.springforge.feedback.ui.FeedbackDialog
 import java.awt.*
 import java.io.File
 import javax.swing.*
@@ -631,6 +632,7 @@ class CICDPanel(private val project: Project) : JPanel() {
                             "CI/CD files generated successfully!\n\nCheck the Output tab for details.",
                             "SpringForge"
                         )
+                        FeedbackDialog.showForModule(project, "cicd-assistant", "CI/CD Pipeline Generation")
                     }
                 } catch (ex: Exception) {
                     appendResults("❌ Error: ${ex.message}\n")

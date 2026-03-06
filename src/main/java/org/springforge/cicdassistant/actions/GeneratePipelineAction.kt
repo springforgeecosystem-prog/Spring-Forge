@@ -13,6 +13,7 @@ import org.springforge.cicdassistant.bedrock.BedrockClient
 import org.springforge.cicdassistant.github.GitHubMCPClient
 import org.springforge.cicdassistant.mcp.models.MCPContext
 import org.springforge.cicdassistant.services.ClaudeService
+import org.springforge.feedback.ui.FeedbackDialog
 import org.springforge.cicdassistant.services.ProjectAnalyzerService
 import org.springforge.cicdassistant.ui.SourceSelectionDialog
 import org.springforge.cicdassistant.ui.SourceType
@@ -116,6 +117,7 @@ class GeneratePipelineAction : AnAction("Generate CI/CD Pipeline") {
                             "✅ CI/CD files generated successfully!\n\nCheck your project root directory.",
                             "SpringForge - Success"
                         )
+                        FeedbackDialog.showForModule(project, "cicd-assistant", "CI/CD Pipeline Generation")
                     }
 
                 } catch (ex: Exception) {

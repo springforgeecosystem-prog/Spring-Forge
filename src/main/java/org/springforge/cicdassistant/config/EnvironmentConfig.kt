@@ -62,6 +62,12 @@ object EnvironmentConfig {
             ?: defaultValue
     }
 
+    // SpringForge Backend (Auth & Feedback) Configuration
+    object Backend {
+        val url: String
+            get() = getEnv("SPRINGFORGE_BACKEND_URL", "http://localhost:4000") ?: "http://localhost:4000"
+    }
+
     // SpringForge API Gateway Configuration
     object Api {
         val url: String?

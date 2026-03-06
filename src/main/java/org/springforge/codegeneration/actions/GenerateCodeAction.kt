@@ -20,6 +20,7 @@ import org.springforge.codegeneration.service.*
 import org.springforge.cicdassistant.audit.AuditService
 import org.springforge.codegeneration.validation.ValidationResult
 import org.springforge.codegeneration.validation.YamlValidator
+import org.springforge.feedback.ui.FeedbackDialog
 import java.io.File
 
 /**
@@ -170,6 +171,9 @@ class GenerateCodeAction : AnAction("Generate Code") {
                         durationMs     = System.currentTimeMillis() - startMs,
                         success        = true
                     )
+
+                    // Show feedback dialog
+                    FeedbackDialog.showForModule(project, "code-generation", "Code Generation")
 
                     // // Open the prompt file for reference
                     // ApplicationManager.getApplication().invokeLater {
