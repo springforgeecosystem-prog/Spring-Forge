@@ -435,7 +435,8 @@ object PsiFeatureExtractor {
             has_transaction         = hasTransaction,
             violates_layer_separation = violatesLayer,
             uses_new_keyword        = usesNewKeyword,
-            has_broad_catch         = hasBroadCatch
+            has_broad_catch         = hasBroadCatch,
+            source_code             = psiFile.text
         )
     }
 

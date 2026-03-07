@@ -50,5 +50,10 @@ data class FileFeatureModel(
 
     // v2: new anti-pattern detection flags
     var uses_new_keyword        : Boolean = false,  // tight_coupling_new_keyword
-    var has_broad_catch         : Boolean = false   // broad_catch
+    var has_broad_catch         : Boolean = false,  // broad_catch
+
+    // v3: source code for LLM validation — when provided, Gemini validates
+    // ML predictions against real code, filters false positives, and generates
+    // context-aware fixes. When null, ML-only behavior is preserved.
+    var source_code             : String? = null
 )

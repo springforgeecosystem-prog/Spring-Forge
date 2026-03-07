@@ -87,9 +87,13 @@ class QualityToolWindowPanel : JPanel() {
         sb.ln("Total Issues Found   : ${r.total_violations} violations across ${r.files_with_violations} files")
         when {
             fixes != null         -> sb.ln("AI Fix Suggestions   : ${fixes.total_fixes} (powered by Gemini 🤖)")
+            r.fix_suggestions.isNotEmpty() -> sb.ln("AI Fix Suggestions   : ${r.fix_suggestions.size} (LLM-validated, inline 🤖)")
             geminiWarning != null -> sb.ln("AI Fix Suggestions   : ⚠️  $geminiWarning")
             r.total_violations > 0 -> sb.ln("AI Fix Suggestions   : ⏳ Loading Gemini suggestions...")
             else                  -> sb.ln("AI Fix Suggestions   : N/A (no violations)")
+        }
+        if (r.llm_enhanced) {
+            sb.ln("LLM Validation       : ✅ Gemini-validated (${r.false_positives_filtered} false positives filtered)")
         }
         sb.ln()
 
@@ -130,8 +134,10 @@ class QualityToolWindowPanel : JPanel() {
             sb.ln("   Your code follows ${r.architecture_pattern} best practices. 🎉")
         } else {
             // Build a lookup map: anti_pattern_type → FixSuggestion
+            // Prefer inline fix_suggestions (from LLM-enhanced response), fall back to separate fixes call
             val fixMap: Map<String, FixSuggestion> =
-                fixes?.suggestions?.associateBy { it.anti_pattern } ?: emptyMap()
+                if (r.fix_suggestions.isNotEmpty()) r.fix_suggestions.associateBy { it.anti_pattern }
+                else fixes?.suggestions?.associateBy { it.anti_pattern } ?: emptyMap()
 
             val critical = r.anti_patterns.filter { it.severity == "CRITICAL" }
             val high     = r.anti_patterns.filter { it.severity == "HIGH" }
@@ -335,6 +341,9 @@ class QualityToolWindowPanel : JPanel() {
         sb.ln("│  📍 Affected Layer    : ${ap.affected_layer}")
         sb.ln("│  🎯 Confidence        : ${(ap.confidence * 100).roundToInt()}%")
         sb.ln("│  📉 Severity          : ${ap.severity}")
+        if (ap.llm_validated) {
+            sb.ln("│  ✅ LLM Validated     : Confirmed by Gemini")
+        }
         if (fix != null && fix.impact_points != 0) {
             sb.ln("│  📉 Impact on Quality : ${fix.impact_points} points")
         }
@@ -346,8 +355,10 @@ class QualityToolWindowPanel : JPanel() {
         if (ap.files.size > 5) sb.ln("│     ... and ${ap.files.size - 5} more")
         sb.ln("│")
 
-        // Problem
-        val problemText = fix?.problem?.takeIf { it.isNotBlank() } ?: ap.description
+        // Problem — prefer LLM description (references actual code), then fix problem, then ap.description
+        val problemText = ap.llm_description.takeIf { it.isNotBlank() }
+            ?: fix?.problem?.takeIf { it.isNotBlank() }
+            ?: ap.description
         sb.ln("│  📖 Problem:")
         sb.ln("│     $problemText")
         sb.ln("│")

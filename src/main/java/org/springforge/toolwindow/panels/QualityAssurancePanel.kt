@@ -510,16 +510,22 @@ class QualityAssurancePanel(private val project: Project) : JPanel() {
                     val result = MLServiceClient.analyzeProjectFull(files)
                     setStatus("ML complete — calling Gemini…", SF.textSecondary); indicator.fraction = 0.65
                     var fixes: ProjectFixResult? = null
-                    if (result.anti_patterns.isNotEmpty()) {
+                    if (result.anti_patterns.isNotEmpty() && !result.llm_enhanced) {
                         indicator.text = "Generating AI fix suggestions…"
-                        try { fixes = MLServiceClient.generateProjectFixes(result) } catch (_: Exception) {}
+                        try {
+                            val sourceMap = files.associate { it.file_name to (it.source_code ?: "") }
+                                .filterValues { it.isNotBlank() }
+                                .ifEmpty { null }
+                            fixes = MLServiceClient.generateProjectFixes(result, sourceMap)
+                        } catch (_: Exception) {}
                     }
                     indicator.fraction = 1.0; lastResult = result; lastFixes = fixes
                     ApplicationManager.getApplication().invokeLater {
                         updateTile(scoreCard,      "${result.overall_score.roundToInt()}/100")
                         updateTile(violationsCard, result.total_violations.toString())
                         updateTile(filesCard,      result.total_files_analyzed.toString())
-                        updateTile(fixesCard,      fixes?.total_fixes?.toString() ?: "0")
+                        val fixCount = fixes?.total_fixes ?: result.fix_suggestions.size
+                        updateTile(fixesCard,      fixCount.toString())
                         val emoji = when { result.overall_score >= 75 -> "🟢"; result.overall_score >= 60 -> "🟠"; else -> "🔴" }
                         setStatus("$emoji  Analysis complete — ${result.overall_display}", SF.green)
                         resetButtons(); viewReportButton.isEnabled = true
@@ -677,7 +683,7 @@ class QualityReportDialog(
 
         /* -- Key metric tiles -- */
         root.add(sectionLabel("KEY METRICS")); root.add(vgap(10))
-        val tileData = listOf(
+        val tileData = mutableListOf(
             Triple("📁", result.total_files_analyzed.toString(),                     "Files Analyzed"),
             Triple("⚠",  result.total_violations.toString(),                         "Violations"),
             Triple("🔍", result.files_with_violations.toString(),                   "Files w/ Issues"),
@@ -685,7 +691,12 @@ class QualityReportDialog(
             Triple("📏", result.avg_loc.roundToInt().toString(),                     "Avg LOC"),
             Triple("📈", "${result.projected_score_after_fixes.roundToInt()}/100",   "Projected Score")
         )
-        val tileRow = JPanel(GridLayout(1, 6, 8, 0)).apply {
+        if (result.llm_enhanced) {
+            tileData.add(Triple("🤖", "Yes", "LLM Validated"))
+            if (result.false_positives_filtered > 0)
+                tileData.add(Triple("🔇", result.false_positives_filtered.toString(), "False Pos. Removed"))
+        }
+        val tileRow = JPanel(GridLayout(0, 4, 8, 8)).apply {
             isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, 72); alignmentX = Component.LEFT_ALIGNMENT
         }
         tileData.forEach { (icon, value, label) ->
@@ -788,6 +799,7 @@ class QualityReportDialog(
         badges.add(Badge(ap.severity, accent))
         badges.add(Badge("${(ap.confidence * 100).roundToInt()}% confidence",
             SF.overlay, SF.textSecondary))
+        if (ap.llm_validated) badges.add(Badge("✅ LLM Validated", Color(0x0D2A15), SF.green))
         titleRow.add(badges, BorderLayout.EAST)
         body.add(titleRow); body.add(vgap(8))
 
@@ -800,7 +812,8 @@ class QualityReportDialog(
         body.add(metaRow); body.add(vgap(8))
 
         /* Problem / Fix */
-        body.add(infoRow("Problem", ap.description))
+        val problemText = ap.llm_description.ifBlank { ap.description }
+        body.add(infoRow("Problem", problemText))
         body.add(vgap(4))
         body.add(infoRow("Fix", ap.recommendation))
         body.add(vgap(8))
@@ -911,19 +924,21 @@ class QualityReportDialog(
 
     private fun buildAIFixesTab(): JComponent {
         val root = tabPanel()
-        if (fixes == null || fixes.suggestions.isEmpty()) {
+        val allSuggestions = fixes?.suggestions?.takeIf { it.isNotEmpty() } ?: result.fix_suggestions
+        if (allSuggestions.isEmpty()) {
             root.add(emptyState(
-                if (fixes == null) "⏳" else "✅",
-                if (fixes == null) "Gemini Not Available" else "No Fixes Needed",
-                if (fixes == null)
-                    "Add GEMINI_API_KEY to the ML service .env file and restart the service."
-                else
+                "✅",
+                "No Fixes Available",
+                if (result.total_violations == 0)
                     "No violations were detected — your project is clean!"
+                else
+                    "No AI fix suggestions were generated for the detected violations."
             ))
         } else {
-            root.add(sectionLabel("🤖  GEMINI AI FIX SUGGESTIONS  (${fixes.suggestions.size} fixes)"))
+            val src = if (result.llm_enhanced) "LLM-ENHANCED" else "GEMINI"
+            root.add(sectionLabel("🤖  $src AI FIX SUGGESTIONS  (${allSuggestions.size} fixes)"))
             root.add(vgap(12))
-            fixes.suggestions.sortedByDescending { it.impact_points }.forEach { fix ->
+            allSuggestions.sortedByDescending { it.impact_points }.forEach { fix ->
                 root.add(fixCard(fix)); root.add(vgap(10))
             }
         }
@@ -999,7 +1014,7 @@ class QualityReportDialog(
         val root = tabPanel()
 
         root.add(sectionLabel("PROJECT HEALTH")); root.add(vgap(10))
-        root.add(metricTable(listOf(
+        val healthRows = mutableListOf(
             "Architecture"             to humanArchName(result.architecture_pattern),
             "Files Analyzed"           to result.total_files_analyzed.toString(),
             "Files with Violations"    to result.files_with_violations.toString(),
@@ -1008,7 +1023,12 @@ class QualityReportDialog(
             "Average LOC"              to result.avg_loc.roundToInt().toString(),
             "Avg Cross-Layer Deps"     to "%.2f".format(result.avg_cross_layer_deps),
             "Projected Score"          to "${result.projected_score_after_fixes.roundToInt()}/100"
-        )))
+        )
+        if (result.llm_enhanced) {
+            healthRows.add("LLM Validation" to "✅ Enabled")
+            healthRows.add("False Positives Filtered" to result.false_positives_filtered.toString())
+        }
+        root.add(metricTable(healthRows))
         root.add(vgap(20))
 
         root.add(sectionLabel("LAYER SCORES")); root.add(vgap(10))
@@ -1194,7 +1214,13 @@ class QualityReportDialog(
         sb.appendLine("Files        : ${result.total_files_analyzed}")
         sb.appendLine("Score        : ${result.overall_display}")
         sb.appendLine("Violations   : ${result.total_violations}")
-        sb.appendLine("AI Fixes     : ${fixes?.total_fixes ?: 0}")
+        val fixCount = fixes?.total_fixes ?: result.fix_suggestions.size
+        sb.appendLine("AI Fixes     : $fixCount")
+        if (result.llm_enhanced) {
+            sb.appendLine("LLM Validated: ✅ Yes")
+            if (result.false_positives_filtered > 0)
+                sb.appendLine("FP Filtered  : ${result.false_positives_filtered}")
+        }
         sb.appendLine()
         sb.appendLine("── LAYER SCORES ──────────────────────────────────────────────────────")
         result.layer_scores.forEach { ls ->
@@ -1211,8 +1237,9 @@ class QualityReportDialog(
                 sb.appendLine("  [${ap.severity}] ${ap.type.replace("_"," ").uppercase()}")
                 sb.appendLine("  Layer      : ${ap.affected_layer}")
                 sb.appendLine("  Confidence : ${(ap.confidence*100).roundToInt()}%")
+                if (ap.llm_validated) sb.appendLine("  LLM Valid  : ✅ Yes")
                 sb.appendLine("  Files      : ${ap.files.joinToString(", ")}")
-                sb.appendLine("  Problem    : ${ap.description}")
+                sb.appendLine("  Problem    : ${ap.llm_description.ifBlank { ap.description }}")
                 sb.appendLine("  Fix        : ${ap.recommendation}")
             }
         }
@@ -1225,29 +1252,30 @@ class QualityReportDialog(
         sb.appendLine()
         sb.appendLine("── CLEAN FILES ───────────────────────────────────────────────────────")
         result.clean_files.forEach { sb.appendLine("  ✅  $it") }
-        fixes?.suggestions?.let { sgs ->
-            if (sgs.isNotEmpty()) {
+        val allSuggestions = fixes?.suggestions?.takeIf { it.isNotEmpty() } ?: result.fix_suggestions
+        if (allSuggestions.isNotEmpty()) {
+            sb.appendLine()
+            val src = if (result.llm_enhanced) "LLM-ENHANCED" else "AI"
+            sb.appendLine("── $src FIX SUGGESTIONS ────────────────────────────────────────────────")
+            allSuggestions.forEach { fix ->
                 sb.appendLine()
-                sb.appendLine("── AI FIX SUGGESTIONS ────────────────────────────────────────────────")
-                sgs.forEach { fix ->
-                    sb.appendLine()
-                    sb.appendLine("  [${fix.severity}] ${fix.anti_pattern.replace("_"," ").uppercase()}")
-                    sb.appendLine("  Impact : -${fix.impact_points} pts  |  ${if (fix.ai_powered) "Gemini AI" else "Static"}")
-                    if (fix.recommendation.isNotBlank()) sb.appendLine("  💡  ${fix.recommendation}")
-                    if (fix.gemini_fix.isNotBlank()) fix.gemini_fix.lines().forEach { sb.appendLine("     $it") }
-                    if (fix.before_code.isNotBlank()) {
-                        sb.appendLine("  // ❌  BEFORE")
-                        fix.before_code.lines().forEach { sb.appendLine("     $it") }
-                        sb.appendLine("  // ✅  AFTER")
-                        fix.after_code.lines().forEach  { sb.appendLine("     $it") }
-                    }
+                sb.appendLine("  [${fix.severity}] ${fix.anti_pattern.replace("_"," ").uppercase()}")
+                sb.appendLine("  Impact : -${fix.impact_points} pts  |  ${if (fix.ai_powered) "Gemini AI" else "Static"}")
+                if (fix.recommendation.isNotBlank()) sb.appendLine("  💡  ${fix.recommendation}")
+                if (fix.gemini_fix.isNotBlank()) fix.gemini_fix.lines().forEach { sb.appendLine("     $it") }
+                if (fix.before_code.isNotBlank()) {
+                    sb.appendLine("  // ❌  BEFORE")
+                    fix.before_code.lines().forEach { sb.appendLine("     $it") }
+                    sb.appendLine("  // ✅  AFTER")
+                    fix.after_code.lines().forEach  { sb.appendLine("     $it") }
                 }
             }
         }
         sb.appendLine()
         sb.appendLine("${"━".repeat(70)}")
         sb.appendLine("  Generated by SpringForge Code Quality Analyzer v2.1")
-        if (fixes != null) sb.appendLine("  AI fixes powered by Google Gemini 🤖")
+        if (result.llm_enhanced) sb.appendLine("  Analysis validated by LLM (Gemini) 🤖")
+        else if (fixes != null) sb.appendLine("  AI fixes powered by Google Gemini 🤖")
         return sb.toString()
     }
 

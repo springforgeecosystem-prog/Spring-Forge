@@ -17,5 +17,9 @@ data class CombinedAnalysisResult(
     val files_with_violations: Int = 0,
     val projected_score_after_fixes: Double = 0.0,
     val quality_summary: String = "",
-    val violation_summary: String = ""
+    val violation_summary: String = "",
+    // v3: LLM validation summary
+    val llm_enhanced: Boolean = false,
+    val false_positives_filtered: Int = 0,
+    val fix_suggestions: List<FixSuggestion> = emptyList()
 )

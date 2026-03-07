@@ -80,13 +80,18 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
                     println("🟩 Initial report shown — overall: ${analysisResult.overall_display}, violations: ${analysisResult.total_violations}")
 
                     // ── STEP 5: Call Gemini for AI fix suggestions ────────────
+                    // If LLM validation was performed, fix_suggestions are already inline —
+                    // skip the separate /generate-fixes call.
                     var aiFixCount = 0
-                    if (analysisResult.anti_patterns.isNotEmpty()) {
+                    if (analysisResult.anti_patterns.isNotEmpty() && !analysisResult.llm_enhanced) {
                         indicator.text     = "🤖 Generating AI fix suggestions (Gemini)..."
                         indicator.fraction = 0.80
 
                         try {
-                            val fixResult = MLServiceClient.generateProjectFixes(analysisResult)
+                            val sourceMap = fileFeatures.associate { it.file_name to (it.source_code ?: "") }
+                                .filterValues { it.isNotBlank() }
+                                .ifEmpty { null }
+                            val fixResult = MLServiceClient.generateProjectFixes(analysisResult, sourceMap)
                             aiFixCount = fixResult.total_fixes
                             indicator.fraction = 0.95
 
@@ -107,6 +112,9 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
                                 )
                             }
                         }
+                    } else if (analysisResult.llm_enhanced) {
+                        aiFixCount = analysisResult.fix_suggestions.size
+                        println("🟩 LLM-enhanced: ${analysisResult.fix_suggestions.size} inline fixes, ${analysisResult.false_positives_filtered} false positives filtered")
                     }
 
                     indicator.fraction = 1.0

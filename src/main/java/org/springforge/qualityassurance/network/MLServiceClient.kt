@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit
  */
 object MLServiceClient {
 
-    private const val BASE_URL = "https://api.springforge.dev/quality"
+    private const val BASE_URL = "http://127.0.0.1:8000"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -64,11 +64,17 @@ object MLServiceClient {
     /**
      * Calls POST /generate-fixes to get batch AI fix suggestions for all
      * anti-patterns detected by [analyzeProjectFull].
+     *
+     * @param fileSources optional map of file_name → source_code for context-aware fixes
      */
-    fun generateProjectFixes(analysisResult: CombinedAnalysisResult): ProjectFixResult {
+    fun generateProjectFixes(
+        analysisResult: CombinedAnalysisResult,
+        fileSources: Map<String, String>? = null
+    ): ProjectFixResult {
         val request = FixRequest(
             anti_patterns        = analysisResult.anti_patterns,
-            architecture_pattern = normaliseArchitecture(analysisResult.architecture_pattern)
+            architecture_pattern = normaliseArchitecture(analysisResult.architecture_pattern),
+            file_sources         = fileSources
         )
         val json = JsonUtil.toJson(request)
         println("🤖 Calling Gemini for ${analysisResult.anti_patterns.size} fix suggestions…")

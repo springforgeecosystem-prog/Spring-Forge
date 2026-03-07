@@ -40,5 +40,7 @@ data class SingleFixRequest(
 /** Request body for POST /generate-fixes (full project batch). */
 data class FixRequest(
     val anti_patterns        : List<AntiPatternDetail> = emptyList(),
-    val architecture_pattern : String                  = "layered"
+    val architecture_pattern : String                  = "layered",
+    // v3: optional source code map for context-aware fix generation
+    val file_sources         : Map<String, String>?    = null
 )
