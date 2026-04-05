@@ -19,6 +19,9 @@ import org.springforge.qualityassurance.model.FileFeatureModel
 import org.springforge.qualityassurance.model.FixSuggestion
 import org.springforge.qualityassurance.model.ProjectFixResult
 import org.springforge.qualityassurance.network.MLServiceClient
+import org.springforge.auth.SessionManager
+import org.springforge.subscription.SubscriptionManager
+import org.springforge.subscription.ui.RequestLimitDialog
 import java.awt.*
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
@@ -491,6 +494,12 @@ class QualityAssurancePanel(private val project: Project) : JPanel() {
     // ── Analysis workflow (unchanged logic) ───────────────────────────────────
 
     private fun runAnalysis() {
+        // Subscription gate
+        if (!SubscriptionManager.getInstance().canMakeRequest()) {
+            RequestLimitDialog.show(project)
+            return
+        }
+
         analyzeButton.isEnabled = false; viewReportButton.isEnabled = false
         progressBar.isVisible   = true; setStatus("Scanning project files…", SF.textSecondary)
         val archKey = selectedArchitecture
@@ -530,6 +539,10 @@ class QualityAssurancePanel(private val project: Project) : JPanel() {
                         setStatus("$emoji  Analysis complete — ${result.overall_display}", SF.green)
                         resetButtons(); viewReportButton.isEnabled = true
                         showReportDialog(result, fixes)
+                        // Increment subscription usage after successful analysis
+                        SessionManager.getInstance().token?.let { tok ->
+                            Thread { SubscriptionManager.getInstance().incrementUsage(tok) }.start()
+                        }
                     }
                 } catch (ex: Exception) {
                     setStatus("❌  ${ex.message}", SF.red); resetButtons()

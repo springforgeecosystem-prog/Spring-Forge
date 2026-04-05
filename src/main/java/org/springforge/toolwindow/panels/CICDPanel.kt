@@ -24,6 +24,9 @@ import org.springforge.cicdassistant.explainability.ui.ExplainabilityPanel
 import org.springforge.cicdassistant.validation.ValidationResult
 import org.springforge.cicdassistant.validation.ValidationService
 import org.springforge.cicdassistant.validation.ui.ValidationResultsPanel
+import org.springforge.auth.SessionManager
+import org.springforge.subscription.SubscriptionManager
+import org.springforge.subscription.ui.RequestLimitDialog
 import java.awt.*
 import java.io.File
 import javax.swing.*
@@ -537,6 +540,13 @@ class CICDPanel(private val project: Project) : JPanel() {
             return
         }
 
+        // Subscription gate — check request limit before making AI call
+        val subManager = SubscriptionManager.getInstance()
+        if (!subManager.canMakeRequest()) {
+            RequestLimitDialog.show(project)
+            return
+        }
+
         val isLocal    = isLocalSelected
         val githubUrl  = githubUrlField.text.trim()
         val branch     = githubBranchComboBox.selectedItem as? String ?: "main"
@@ -622,6 +632,11 @@ class CICDPanel(private val project: Project) : JPanel() {
                         durationMs = 0L,
                         success    = true
                     )
+
+                    // Increment subscription usage after successful generation
+                    SessionManager.getInstance().token?.let { tok ->
+                        SubscriptionManager.getInstance().incrementUsage(tok)
+                    }
 
                     ApplicationManager.getApplication().invokeLater {
                         validateButton.isEnabled = true
