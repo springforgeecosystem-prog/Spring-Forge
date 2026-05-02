@@ -88,7 +88,10 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
                     enableAnnotationProcessing(targetDir)
 
                     indicator.text = "Applying Architecture Template..."
-                    TemplateGenerator.generate(targetDir, packageRoot, arch)
+                    // Use the package Spring Initializr actually placed the app class in,
+                    // which may differ from user input if Initializr sanitized the name.
+                    val effectivePackage = detectActualPackage(targetDir) ?: packageRoot
+                    TemplateGenerator.generate(targetDir, effectivePackage, arch)
 
                     indicator.text = "Syncing filesystem..."
                     val targetVFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(targetDir)
@@ -131,6 +134,16 @@ class CreateNewProjectAction : AnAction("SpringForge: Create New Spring Boot Pro
                 }
             }
         }.queue()
+    }
+
+    private fun detectActualPackage(projectRoot: File): String? {
+        val srcMainJava = File(projectRoot, "src/main/java")
+        if (!srcMainJava.exists()) return null
+        val appFile = srcMainJava.walkTopDown()
+            .firstOrNull { it.isFile && it.name.endsWith("Application.java") }
+            ?: return null
+        val packageDir = appFile.parentFile ?: return null
+        return packageDir.relativeTo(srcMainJava).path.replace(File.separatorChar, '.')
     }
 
     private fun extractGroupId(pkg: String): String =
