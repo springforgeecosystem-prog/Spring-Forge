@@ -36,9 +36,15 @@ dependencies {
     // PostgreSQL JDBC driver for Audit Logging
     implementation("org.postgresql:postgresql:42.7.3")
 
-
     //
     implementation("org.json:json:20231013")
+
+    // Unit Testing
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:1.9.23")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.0")
+    // IntelliJ Gradle plugin injects its test framework which requires JUnit 4 runner classes at runtime
+    testRuntimeOnly("junit:junit:4.13.2")
 
 }
 
@@ -70,6 +76,10 @@ tasks {
 
     buildSearchableOptions {
         enabled = false // Disable to speed up build and avoid sandbox issues
+    }
+
+    test {
+        useJUnitPlatform()
     }
 }
 

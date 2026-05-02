@@ -3,13 +3,19 @@ package org.springforge.toolwindow
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBTabbedPane
+import org.springforge.auth.SessionManager
 import org.springforge.cicdassistant.audit.ui.AuditDashboardPanel
 import org.springforge.toolwindow.panels.CICDPanel
 import org.springforge.toolwindow.panels.CodeGenerationPanel
 import org.springforge.toolwindow.panels.QualityAssurancePanel
 import org.springforge.toolwindow.panels.RuntimeAnalysisPanel
+import org.springforge.feedback.ui.FeedbackDialog
 import java.awt.BorderLayout
+import java.awt.Dimension
+import java.awt.Font
 import javax.swing.BorderFactory
+import javax.swing.Box
+import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.SwingConstants
@@ -58,15 +64,58 @@ class SpringForgeToolWindowPanel(private val project: Project) : JPanel() {
         )
 
         val titleLabel = JLabel("SpringForge Tools")
-        titleLabel.font = titleLabel.font.deriveFont(16f).deriveFont(java.awt.Font.BOLD)
+        titleLabel.font = titleLabel.font.deriveFont(16f).deriveFont(Font.BOLD)
         titleLabel.horizontalAlignment = SwingConstants.LEFT
 
-        val versionLabel = JLabel("v1.0.0")
-        versionLabel.foreground = JBColor.GRAY
-        versionLabel.horizontalAlignment = SwingConstants.RIGHT
+        // Right side: user info + logout
+        val rightPanel = JPanel()
+        rightPanel.isOpaque = false
+        rightPanel.layout = java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 6, 0)
+
+        val session = SessionManager.getInstance()
+        if (session.isLoggedIn) {
+            val userLabel = JLabel(session.currentUser?.fullName ?: session.currentUser?.email ?: "")
+            userLabel.foreground = JBColor.GRAY
+            userLabel.font = userLabel.font.deriveFont(11f)
+            rightPanel.add(userLabel)
+
+            val feedbackButton = JButton("\u2606 Feedback")
+            feedbackButton.preferredSize = Dimension(90, 24)
+            feedbackButton.font = feedbackButton.font.deriveFont(10f)
+            feedbackButton.toolTipText = "Share your feedback about SpringForge"
+            feedbackButton.addActionListener {
+                FeedbackDialog.showForModule(project, "springforge", "SpringForge")
+            }
+            rightPanel.add(feedbackButton)
+
+            val logoutButton = JButton("Logout")
+            logoutButton.preferredSize = Dimension(70, 24)
+            logoutButton.font = logoutButton.font.deriveFont(10f)
+            logoutButton.addActionListener {
+                session.logout()
+                // Replace content with login panel
+                val service = project.getService(SpringForgeToolWindowService::class.java)
+                val tw = service.toolWindow ?: return@addActionListener
+                tw.contentManager.removeAllContents(true)
+                val loginPanel = LoginRequiredPanel(project) {
+                    tw.contentManager.removeAllContents(true)
+                    val content = com.intellij.ui.content.ContentFactory.getInstance()
+                        .createContent(SpringForgeToolWindowPanel(project), "", false)
+                    tw.contentManager.addContent(content)
+                }
+                val content = com.intellij.ui.content.ContentFactory.getInstance()
+                    .createContent(loginPanel, "", false)
+                tw.contentManager.addContent(content)
+            }
+            rightPanel.add(logoutButton)
+        } else {
+            val versionLabel = JLabel("v1.0.0")
+            versionLabel.foreground = JBColor.GRAY
+            rightPanel.add(versionLabel)
+        }
 
         headerPanel.add(titleLabel, BorderLayout.WEST)
-        headerPanel.add(versionLabel, BorderLayout.EAST)
+        headerPanel.add(rightPanel, BorderLayout.EAST)
 
         return headerPanel
     }

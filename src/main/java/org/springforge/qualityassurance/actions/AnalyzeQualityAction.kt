@@ -13,6 +13,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
+import org.springforge.cicdassistant.audit.AuditService
 import org.springforge.qualityassurance.analysis.PsiFeatureExtractor
 import org.springforge.qualityassurance.model.CombinedAnalysisResult
 import org.springforge.qualityassurance.model.FileFeatureModel
@@ -41,6 +42,7 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
             true
         ) {
             override fun run(indicator: ProgressIndicator) {
+                val startMs = System.currentTimeMillis()
                 try {
                     // ── STEP 1: Ensure tool window is visible FIRST ───────────
                     // This must happen on EDT before we try to get the panel
@@ -78,12 +80,19 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
                     println("🟩 Initial report shown — overall: ${analysisResult.overall_display}, violations: ${analysisResult.total_violations}")
 
                     // ── STEP 5: Call Gemini for AI fix suggestions ────────────
-                    if (analysisResult.anti_patterns.isNotEmpty()) {
+                    // If LLM validation was performed, fix_suggestions are already inline —
+                    // skip the separate /generate-fixes call.
+                    var aiFixCount = 0
+                    if (analysisResult.anti_patterns.isNotEmpty() && !analysisResult.llm_enhanced) {
                         indicator.text     = "🤖 Generating AI fix suggestions (Gemini)..."
                         indicator.fraction = 0.80
 
                         try {
-                            val fixResult = MLServiceClient.generateProjectFixes(analysisResult)
+                            val sourceMap = fileFeatures.associate { it.file_name to (it.source_code ?: "") }
+                                .filterValues { it.isNotBlank() }
+                                .ifEmpty { null }
+                            val fixResult = MLServiceClient.generateProjectFixes(analysisResult, sourceMap)
+                            aiFixCount = fixResult.total_fixes
                             indicator.fraction = 0.95
 
                             // Update the panel on EDT with AI fixes
@@ -103,6 +112,9 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
                                 )
                             }
                         }
+                    } else if (analysisResult.llm_enhanced) {
+                        aiFixCount = analysisResult.fix_suggestions.size
+                        println("🟩 LLM-enhanced: ${analysisResult.fix_suggestions.size} inline fixes, ${analysisResult.false_positives_filtered} false positives filtered")
                     }
 
                     indicator.fraction = 1.0
@@ -119,10 +131,26 @@ class AnalyzeQualityAction : AnAction("Analyze Code Quality") {
                         notifType
                     )
 
+                    AuditService.getInstance(project).logQualityScan(
+                        filesAnalyzed      = analysisResult.total_files_analyzed,
+                        totalViolations    = analysisResult.total_violations,
+                        criticalViolations = analysisResult.anti_patterns.count { it.severity == "CRITICAL" },
+                        aiFixCount         = aiFixCount,
+                        architecture       = architecture,
+                        durationMs         = System.currentTimeMillis() - startMs,
+                        success            = true
+                    )
+
                 } catch (ex: Exception) {
                     showError(
                         project,
                         "Analysis failed: ${ex.message}\n\nMake sure the ML Service is running on port 8081.\nStart it with: uvicorn app.main:app --port 8081 --reload"
+                    )
+                    AuditService.getInstance(project).logQualityScan(
+                        filesAnalyzed = 0, totalViolations = 0, criticalViolations = 0,
+                        aiFixCount = 0, architecture = architecture,
+                        durationMs = System.currentTimeMillis() - startMs,
+                        success = false, errorMsg = ex.message
                     )
                     ex.printStackTrace()
                 }

@@ -13,413 +13,530 @@ import com.intellij.ui.components.JBTextArea
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import org.springforge.qualityassurance.analysis.PsiFeatureExtractor
+import org.springforge.qualityassurance.model.AntiPatternDetail
 import org.springforge.qualityassurance.model.CombinedAnalysisResult
 import org.springforge.qualityassurance.model.FileFeatureModel
+import org.springforge.qualityassurance.model.FixSuggestion
 import org.springforge.qualityassurance.model.ProjectFixResult
 import org.springforge.qualityassurance.network.MLServiceClient
 import java.awt.*
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.awt.geom.RoundRectangle2D
 import java.awt.print.PageFormat
 import java.awt.print.Printable
 import java.awt.print.PrinterException
 import java.awt.print.PrinterJob
 import javax.swing.*
+import javax.swing.border.AbstractBorder
 import javax.swing.border.EmptyBorder
 import kotlin.math.roundToInt
 
-/**
- * Quality Assurance Panel — lives inside the "Quality" tab of the main SpringForge tool window.
- *
- * Flow:
- *   1. User selects architecture pattern (card-based selector)
- *   2. User clicks "Analyze Code Quality"
- *   3. Background task runs ML + Gemini
- *   4. Full report opens in a popup dialog with Print + Close buttons
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DESIGN TOKENS  — single source of truth for all colors / radii / spacing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+private object SF {
+    // Surface hierarchy
+    val bg         = JBColor(Color(0xF0F4F8), Color(0x0D1117))
+    val surface    = JBColor(Color(0xFFFFFF), Color(0x161B22))
+    val surfaceAlt = JBColor(Color(0xF6F8FA), Color(0x1C2128))
+    val overlay    = JBColor(Color(0xEAEFF5), Color(0x21262D))
+
+    // Text
+    val textPrimary   = JBColor(Color(0x0D1117), Color(0xE6EDF3))
+    val textSecondary = JBColor(Color(0x57606A), Color(0x8B949E))
+    val textMuted     = JBColor(Color(0x8C959F), Color(0x6E7681))
+
+    // Borders
+    val border        = JBColor(Color(0xD0D7DE), Color(0x30363D))
+    val borderStrong  = JBColor(Color(0xAFB8C1), Color(0x484F58))
+
+    // Brand / accent
+    val brand         = JBColor(Color(0x0969DA), Color(0x58A6FF))
+    val brandBg       = JBColor(Color(0xDDF4FF), Color(0x0D2135))
+
+    // Semantic — success / warning / danger
+    val green         = JBColor(Color(0x1A7F37), Color(0x3FB950))
+    val greenBg       = JBColor(Color(0xDCFCE7), Color(0x0D2A15))
+    val greenBgRow    = JBColor(Color(0xF0FDF4), Color(0x071E0F))
+
+    val amber         = JBColor(Color(0xBF8700), Color(0xD29922))
+    val amberBg       = JBColor(Color(0xFFF8C5), Color(0x2B1D00))
+
+    val red           = JBColor(Color(0xCF222E), Color(0xF85149))
+    val redBg         = JBColor(Color(0xFFEBE9), Color(0x2A0A0A))
+    val redBgRow      = JBColor(Color(0xFFF1F2), Color(0x1C0606))
+
+    val purple        = JBColor(Color(0x8250DF), Color(0xD2A8FF))
+    val purpleBg      = JBColor(Color(0xFBEFFF), Color(0x1D0E30))
+
+    val orange        = JBColor(Color(0xBC4C00), Color(0xFFA657))
+
+    // Header / dark band
+    val headerBg      = JBColor(Color(0x0D1117), Color(0x010409))
+    val headerBorder  = JBColor(Color(0x21262D), Color(0x21262D))
+
+    // Code block
+    val codeBg        = JBColor(Color(0xF6F8FA), Color(0x161B22))
+    val codeFg        = JBColor(Color(0x1F2328), Color(0xE6EDF3))
+
+    // Geometry
+    const val RADIUS  = 8
+    const val RADIUS_S = 5
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CUSTOM PRIMITIVES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Anti-aliased rounded border with configurable stroke thickness. */
+private class RoundBorder(
+    private val radius : Int,
+    private val color  : Color,
+    private val stroke : Float = 1f
+) : AbstractBorder() {
+    override fun paintBorder(c: Component, g: Graphics, x: Int, y: Int, w: Int, h: Int) {
+        val g2 = g.create() as Graphics2D
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.color  = color
+        g2.stroke = BasicStroke(stroke)
+        g2.draw(RoundRectangle2D.Float(stroke / 2, stroke / 2, w - stroke, h - stroke,
+            radius.toFloat(), radius.toFloat()))
+        g2.dispose()
+    }
+    override fun getBorderInsets(c: Component) =
+        Insets(radius / 3 + 2, radius / 3 + 3, radius / 3 + 2, radius / 3 + 3)
+}
+
+/** Pill-shaped label badge. */
+private class Badge(text: String, bg: Color, fg: Color = Color.WHITE) : JComponent() {
+    private val txt = text
+    private val bgC = bg
+    private val fgC = fg
+    init {
+        isOpaque    = false
+        preferredSize = run {
+            val fm = getFontMetrics(Font("Monospaced", Font.BOLD, 10))
+            Dimension(fm.stringWidth(txt) + 16, fm.height + 6)
+        }
+    }
+    override fun paintComponent(g: Graphics) {
+        val g2 = g.create() as Graphics2D
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.color = bgC; g2.fillRoundRect(0, 0, width, height, height, height)
+        g2.color = fgC; g2.font = Font("Monospaced", Font.BOLD, 10)
+        val fm = g2.fontMetrics
+        g2.drawString(txt, (width - fm.stringWidth(txt)) / 2, (height + fm.ascent - fm.descent) / 2)
+        g2.dispose()
+    }
+}
+
+/** Circular score ring drawn with Arc2D. */
+private class ScoreRing(private val score: Int) : JComponent() {
+    private val ringFg = when {
+        score >= 90 -> SF.green
+        score >= 75 -> SF.green
+        score >= 60 -> SF.amber
+        score >= 40 -> SF.orange
+        else        -> SF.red
+    }
+    init { isOpaque = false; preferredSize = Dimension(96, 96) }
+    override fun paintComponent(g: Graphics) {
+        val g2 = g.create() as Graphics2D
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        val cx = width / 2; val cy = height / 2; val r = 38
+        // Track ring
+        g2.color  = SF.overlay
+        g2.stroke = BasicStroke(7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+        g2.drawOval(cx - r, cy - r, r * 2, r * 2)
+        // Score arc
+        g2.color  = ringFg
+        g2.stroke = BasicStroke(7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+        g2.drawArc(cx - r, cy - r, r * 2, r * 2, 90, -(score * 360 / 100))
+        // Score number
+        g2.color = SF.textPrimary
+        g2.font  = Font("Monospaced", Font.BOLD, 20)
+        val fm1  = g2.fontMetrics
+        val s    = "$score"
+        g2.drawString(s, cx - fm1.stringWidth(s) / 2, cy + fm1.ascent / 2 - 1)
+        // "/100" beneath
+        g2.color = SF.textMuted
+        g2.font  = Font("Monospaced", Font.PLAIN, 9)
+        val fm2  = g2.fontMetrics
+        val sub  = "/100"
+        g2.drawString(sub, cx - fm2.stringWidth(sub) / 2, cy + 15)
+        g2.dispose()
+    }
+}
+
+/** Thin horizontal progress bar. */
+private class ScoreBar(private val score: Double, private val w: Int = 0) : JComponent() {
+    private val fill = when {
+        score >= 75 -> SF.green
+        score >= 60 -> SF.amber
+        else        -> SF.red
+    }
+    init { isOpaque = false; preferredSize = Dimension(w.coerceAtLeast(60), 8) }
+    override fun paintComponent(g: Graphics) {
+        val g2 = g.create() as Graphics2D
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.color = SF.overlay; g2.fillRoundRect(0, 0, width, height, height, height)
+        val fw = (score / 100.0 * width).toInt().coerceIn(height, width)
+        g2.color = fill; g2.fillRoundRect(0, 0, fw, height, height, height)
+        g2.dispose()
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SHARED BUILDER HELPERS  (module-level so both classes can use them)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Card panel with rounded corners painted on a per-component basis. */
+private fun sfCard(radius: Int = SF.RADIUS, bg: Color = SF.surface, extraPad: Insets = Insets(12, 14, 12, 14)): JPanel =
+    object : JPanel() {
+        override fun paintComponent(g: Graphics) {
+            val g2 = g.create() as Graphics2D
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g2.color = bg; g2.fillRoundRect(0, 0, width, height, radius, radius)
+            g2.dispose()
+            super.paintComponent(g)
+        }
+    }.apply {
+        isOpaque   = false
+        border     = BorderFactory.createCompoundBorder(
+            RoundBorder(radius, SF.border),
+            JBUI.Borders.empty(extraPad.top, extraPad.left, extraPad.bottom, extraPad.right)
+        )
+        alignmentX = Component.LEFT_ALIGNMENT
+        maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
+    }
+
+/** Monospace label — section-header style */
+private fun sectionLabel(text: String): JLabel = JLabel(text).apply {
+    font       = Font("Monospaced", Font.BOLD, 12)
+    foreground = SF.textMuted
+    alignmentX = Component.LEFT_ALIGNMENT
+}
+
+/** Wrap a panel in a JBScrollPane with no decoration. */
+private fun scrolled(p: JPanel): JBScrollPane = JBScrollPane(p).apply {
+    border              = JBUI.Borders.empty()
+    verticalScrollBar.unitIncrement = 14
+}
+
+/** Small monospaced chip */
+private fun chip(text: String): JLabel = JLabel(text).apply {
+    font       = Font("Monospaced", Font.PLAIN, 10)
+    foreground = SF.textSecondary
+    background = SF.surfaceAlt
+    isOpaque   = true
+    border     = BorderFactory.createCompoundBorder(
+        RoundBorder(SF.RADIUS_S, SF.border),
+        JBUI.Borders.empty(1, 6)
+    )
+}
+
+/** Left-stripe accent panel used on violation / fix cards. */
+private fun stripeCard(stripeColor: Color): JPanel {
+    val card = sfCard(SF.RADIUS)
+    card.layout = BorderLayout(0, 0)
+    val stripe = JPanel().apply {
+        background  = stripeColor
+        preferredSize = Dimension(4, 0)
+        isOpaque    = true
+    }
+    card.add(stripe, BorderLayout.WEST)
+    return card
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  QualityAssurancePanel  — side-panel (architecture selector + action buttons)
+// ═══════════════════════════════════════════════════════════════════════════════
+
 class QualityAssurancePanel(private val project: Project) : JPanel() {
 
-    // ── State ─────────────────────────────────────────────────────────────────
-    private var selectedArchitecture = "Layered"
-    private var lastResult: CombinedAnalysisResult? = null
-    private var lastFixes: ProjectFixResult? = null
-
-    // ── Architecture cards ────────────────────────────────────────────────────
+    // ── Data ──────────────────────────────────────────────────────────────────
     private val architectures = listOf(
-        Triple("Layered",     "🏗️", "Controller → Service → Repository"),
-        Triple("Hexagonal",   "⬡",  "Ports & Adapters pattern"),
-        Triple("Clean",       "◎",  "Dependency Rule enforced"),
-        Triple("MVC",         "🔄", "Model-View-Controller")
+        Triple("layered",            "Layered",            "Controller → Service → Repository"),
+        Triple("mvc",                "MVC",                "Model-View-Controller pattern"),
+        Triple("hexagonal",          "Hexagonal",          "Ports & Adapters / Onion"),
+        Triple("clean_architecture", "Clean Architecture", "Dependency Rule enforced")
     )
+    private var selectedArchitecture = "layered"
     private val archCards = mutableMapOf<String, JPanel>()
 
-    // ── Status widgets ────────────────────────────────────────────────────────
-    private val statusLabel    = JBLabel("Ready to analyze").apply {
-        font       = JBUI.Fonts.label(11f)
-        foreground = JBColor.GRAY
-    }
-    private val progressBar    = JProgressBar().apply {
-        isIndeterminate = true
-        isVisible       = false
-        preferredSize   = Dimension(Int.MAX_VALUE, 4)
-        border          = EmptyBorder(0, 0, 0, 0)
-    }
-    private val analyzeButton  = JButton("Analyze Code Quality")
-    private val viewReportButton = JButton("View Last Report").apply { isEnabled = false }
+    // ── State ─────────────────────────────────────────────────────────────────
+    private var lastResult: CombinedAnalysisResult? = null
+    private var lastFixes : ProjectFixResult?       = null
 
-    // ── Summary mini-cards ────────────────────────────────────────────────────
-    private val scoreCard      = buildMiniCard("—",   "Overall Score",   JBColor(Color(0x3B82F6), Color(0x60A5FA)))
-    private val violationsCard = buildMiniCard("—",   "Violations",      JBColor(Color(0xEF4444), Color(0xF87171)))
-    private val filesCard      = buildMiniCard("—",   "Files Analyzed",  JBColor(Color(0x10B981), Color(0x34D399)))
-    private val fixesCard      = buildMiniCard("—",   "AI Fixes",        JBColor(Color(0x8B5CF6), Color(0xA78BFA)))
+    // ── Widgets ───────────────────────────────────────────────────────────────
+    private val statusLabel = JLabel("Ready to analyze").apply {
+        font = Font("Monospaced", Font.PLAIN, 11); foreground = SF.textSecondary
+    }
+    private val progressBar = JProgressBar().apply {
+        isIndeterminate = true; isVisible = false
+        preferredSize   = Dimension(Int.MAX_VALUE, 2); border = EmptyBorder(0, 0, 0, 0)
+    }
 
-    // ── Init ──────────────────────────────────────────────────────────────────
+    private val analyzeButton = JButton("⚡  Analyze Code Quality").apply {
+        font             = Font("Monospaced", Font.BOLD, 12)
+        background       = SF.brand; foreground = Color.WHITE
+        isFocusPainted   = false; isContentAreaFilled = true; isOpaque = true
+        border           = JBUI.Borders.empty(8, 14)
+        cursor           = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+    }
+    private val viewReportButton = JButton("📋  View Last Report").apply {
+        font           = Font("Monospaced", Font.PLAIN, 12); isEnabled = false
+        isFocusPainted = false; border = JBUI.Borders.empty(8, 14)
+        cursor         = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+    }
+
+    // Mini summary tiles
+    private val scoreCard      = miniTile("—",  "Score",     SF.brand)
+    private val violationsCard = miniTile("—",  "Issues",    SF.red)
+    private val filesCard      = miniTile("—",  "Files",     SF.green)
+    private val fixesCard      = miniTile("—",  "AI Fixes",  SF.purple)
+
     init {
         layout     = BorderLayout()
         background = UIUtil.getPanelBackground()
-        border     = JBUI.Borders.empty(14, 14, 14, 14)
+        border     = JBUI.Borders.empty(14)
         buildUI()
     }
 
-    // =========================================================================
-    //  UI Construction
-    // =========================================================================
+    // ── UI Construction ───────────────────────────────────────────────────────
 
     private fun buildUI() {
         val root = JPanel().apply {
-            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque   = false
-            alignmentX = Component.LEFT_ALIGNMENT
+            layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false; alignmentX = Component.LEFT_ALIGNMENT
         }
+        fun gap(n: Int) = root.add(Box.createVerticalStrut(n))
 
-        root.add(buildSectionLabel("ARCHITECTURE PATTERN"))
-        root.add(Box.createVerticalStrut(8))
-        root.add(buildArchCards())
-        root.add(Box.createVerticalStrut(18))
-        root.add(buildSectionLabel("ACTIONS"))
-        root.add(Box.createVerticalStrut(8))
-        root.add(buildActionRow())
-        root.add(Box.createVerticalStrut(6))
-        root.add(progressBar.also { it.alignmentX = Component.LEFT_ALIGNMENT; it.maximumSize = Dimension(Int.MAX_VALUE, 4) })
-        root.add(Box.createVerticalStrut(4))
-        root.add(statusLabel.also { it.alignmentX = Component.LEFT_ALIGNMENT })
-        root.add(Box.createVerticalStrut(18))
-        root.add(buildSectionLabel("LAST ANALYSIS SUMMARY"))
-        root.add(Box.createVerticalStrut(8))
-        root.add(buildSummaryCards())
-        root.add(Box.createVerticalStrut(18))
-        root.add(buildSectionLabel("HOW IT WORKS"))
-        root.add(Box.createVerticalStrut(8))
+        root.add(sectionLabel("ARCHITECTURE PATTERN")); gap(8)
+        root.add(buildArchGrid()); gap(18)
+
+        root.add(sectionLabel("ACTIONS")); gap(8)
+        root.add(buildActionRow()); gap(4)
+        root.add(progressBar.also { it.alignmentX = Component.LEFT_ALIGNMENT; it.maximumSize = Dimension(Int.MAX_VALUE, 2) }); gap(4)
+        root.add(statusLabel.also { it.alignmentX = Component.LEFT_ALIGNMENT }); gap(18)
+
+        root.add(sectionLabel("LAST ANALYSIS SUMMARY")); gap(8)
+        root.add(buildSummaryTiles()); gap(18)
+
+        root.add(sectionLabel("HOW IT WORKS")); gap(8)
         root.add(buildHowItWorks())
-        root.add(Box.createVerticalGlue())
 
-        add(JBScrollPane(root).apply { border = JBUI.Borders.empty() }, BorderLayout.CENTER)
+        root.add(Box.createVerticalGlue())
+        add(scrolled(root), BorderLayout.CENTER)
         wireListeners()
     }
 
-    // ── Section label ─────────────────────────────────────────────────────────
+    // ── Architecture selector grid ────────────────────────────────────────────
 
-    private fun buildSectionLabel(text: String): JBLabel =
-        JBLabel(text).apply {
-            font       = JBUI.Fonts.label(9f).asBold()
-            foreground = JBColor(Color(0x6B7280), Color(0x9CA3AF))
-            alignmentX = Component.LEFT_ALIGNMENT
+    private fun buildArchGrid(): JPanel =
+        JPanel(GridLayout(2, 2, 8, 8)).apply {
+            isOpaque    = false; alignmentX  = Component.LEFT_ALIGNMENT
+            maximumSize = Dimension(Int.MAX_VALUE, 112)
+        }.also { grid ->
+            architectures.forEach { (key, name, desc) ->
+                val icon = mapOf("layered" to "🏗", "mvc" to "🔄",
+                                 "hexagonal" to "⬡", "clean_architecture" to "◎")[key] ?: "◻"
+                val card = buildArchCard(key, name, icon, desc, key == selectedArchitecture)
+                archCards[key] = card; grid.add(card)
+            }
         }
 
-    // ── Architecture cards ────────────────────────────────────────────────────
-
-    private fun buildArchCards(): JPanel {
-        val grid = JPanel(GridLayout(2, 2, 8, 8)).apply {
-            isOpaque   = false
-            alignmentX = Component.LEFT_ALIGNMENT
-            maximumSize = Dimension(Int.MAX_VALUE, 120)
+    private fun buildArchCard(key: String, name: String, icon: String, desc: String, selected: Boolean): JPanel {
+        val isSelected = selected
+        val card = object : JPanel(BorderLayout(6, 0)) {
+            override fun paintComponent(g: Graphics) {
+                val g2 = g.create() as Graphics2D
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2.color = background; g2.fillRoundRect(0, 0, width, height, SF.RADIUS, SF.RADIUS)
+                g2.dispose()
+            }
+        }.apply {
+            isOpaque = false; cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         }
-        architectures.forEach { (name, icon, desc) ->
-            val card = buildArchCard(name, icon, desc, name == selectedArchitecture)
-            archCards[name] = card
-            grid.add(card)
-        }
-        return grid
-    }
-
-    private fun buildArchCard(name: String, icon: String, desc: String, selected: Boolean): JPanel {
-        val card = JPanel(BorderLayout(8, 2)).apply {
-            isOpaque = true
-            cursor   = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            applyCardStyle(this, selected)
-        }
-
-        val iconLabel = JBLabel(icon).apply { font = font.deriveFont(16f) }
-        val textCol   = JPanel().apply {
-            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque = false
-        }
-        textCol.add(JBLabel(name).apply {
-            font       = JBUI.Fonts.label(11f).asBold()
-            foreground = if (selected) JBColor(Color(0x2563EB), Color(0x93C5FD)) else UIUtil.getLabelForeground()
-        })
-        textCol.add(JBLabel(desc).apply {
-            font       = JBUI.Fonts.label(9f)
-            foreground = JBColor.GRAY
-        })
-
-        card.border = JBUI.Borders.empty(8, 10)
-        card.add(iconLabel, BorderLayout.WEST)
-        card.add(textCol,   BorderLayout.CENTER)
+        refreshCardStyle(card, key, name, desc, icon, isSelected)
         return card
     }
 
-    private fun applyCardStyle(card: JPanel, selected: Boolean) {
-        card.background = if (selected)
-            JBColor(Color(0xEFF6FF), Color(0x1E3A5F))
-        else
-            UIUtil.getPanelBackground()
+    private fun refreshCardStyle(card: JPanel, key: String, name: String, desc: String, icon: String, selected: Boolean) {
+        card.removeAll()
+        val accent = if (selected) SF.brand else SF.textMuted
+        card.background = if (selected) SF.brandBg else SF.surface
         card.border = BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(
-                if (selected) JBColor(Color(0x3B82F6), Color(0x60A5FA)) else JBColor.border(),
-                if (selected) 2 else 1, true
-            ),
+            RoundBorder(SF.RADIUS, if (selected) SF.brand else SF.border, if (selected) 2f else 1f),
             JBUI.Borders.empty(8, 10)
         )
+        // Icon
+        card.add(JLabel(icon).apply { font = font.deriveFont(15f); foreground = accent }, BorderLayout.WEST)
+        // Text column
+        val col = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false }
+        col.add(JLabel(name).apply {
+            font = Font("Monospaced", Font.BOLD, 11); foreground = if (selected) SF.brand else SF.textPrimary; this.name = "nameLabel"
+        })
+        col.add(JLabel(desc).apply { font = Font("Monospaced", Font.PLAIN, 9); foreground = SF.textSecondary })
+        card.add(col, BorderLayout.CENTER)
+        // Check mark
+        if (selected) card.add(JLabel("✓").apply {
+            font = Font("Monospaced", Font.BOLD, 12); foreground = SF.brand
+        }, BorderLayout.EAST)
+        card.revalidate(); card.repaint()
+    }
+
+    private fun wireCardHover(card: JPanel, key: String) {
+        card.addMouseListener(object : MouseAdapter() {
+            override fun mouseEntered(e: MouseEvent) {
+                if (key != selectedArchitecture) card.background = SF.surfaceAlt; card.repaint()
+            }
+            override fun mouseExited(e: MouseEvent) {
+                if (key != selectedArchitecture) card.background = SF.surface; card.repaint()
+            }
+        })
     }
 
     // ── Action row ────────────────────────────────────────────────────────────
 
-    private fun buildActionRow(): JPanel {
-        val row = JPanel(GridLayout(1, 2, 8, 0)).apply {
-            isOpaque    = false
-            alignmentX  = Component.LEFT_ALIGNMENT
-            maximumSize = Dimension(Int.MAX_VALUE, 38)
-        }
-
-        analyzeButton.apply {
-            font             = JBUI.Fonts.label(12f).asBold()
-            background       = JBColor(Color(0x2563EB), Color(0x1D4ED8))
-            foreground       = Color.WHITE
-            isFocusPainted   = false
-            isContentAreaFilled = true
-            border           = JBUI.Borders.empty(8, 14)
-            cursor           = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        }
-
-        viewReportButton.apply {
-            font           = JBUI.Fonts.label(12f)
-            isFocusPainted = false
-            border         = JBUI.Borders.empty(8, 14)
-            cursor         = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        }
-
-        row.add(analyzeButton)
-        row.add(viewReportButton)
-        return row
+    private fun buildActionRow(): JPanel = JPanel(GridLayout(1, 2, 8, 0)).apply {
+        isOpaque = false; alignmentX = Component.LEFT_ALIGNMENT; maximumSize = Dimension(Int.MAX_VALUE, 38)
+        add(analyzeButton); add(viewReportButton)
     }
 
-    // ── Summary mini cards ────────────────────────────────────────────────────
+    // ── Summary tiles ─────────────────────────────────────────────────────────
 
-    private fun buildSummaryCards(): JPanel {
-        val grid = JPanel(GridLayout(1, 4, 8, 0)).apply {
-            isOpaque    = false
-            alignmentX  = Component.LEFT_ALIGNMENT
-            maximumSize = Dimension(Int.MAX_VALUE, 72)
-        }
-        grid.add(scoreCard)
-        grid.add(violationsCard)
-        grid.add(filesCard)
-        grid.add(fixesCard)
-        return grid
+    private fun buildSummaryTiles(): JPanel = JPanel(GridLayout(1, 4, 8, 0)).apply {
+        isOpaque = false; alignmentX = Component.LEFT_ALIGNMENT; maximumSize = Dimension(Int.MAX_VALUE, 68)
+        add(scoreCard); add(violationsCard); add(filesCard); add(fixesCard)
     }
 
-    private fun buildMiniCard(value: String, label: String, accent: Color): JPanel {
-        val card = JPanel().apply {
-            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-            background = UIUtil.getPanelBackground()
-            border     = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor.border(), 1, true),
-                JBUI.Borders.empty(8, 10)
-            )
-        }
-        val valLabel = JBLabel(value).apply {
-            font       = JBUI.Fonts.label(20f).asBold()
-            foreground = accent
-            alignmentX = Component.LEFT_ALIGNMENT
-        }
-        val lbl = JBLabel(label).apply {
-            font       = JBUI.Fonts.label(9f)
-            foreground = JBColor.GRAY
-            alignmentX = Component.LEFT_ALIGNMENT
-        }
-        // Tag value label so we can find and update it later
-        valLabel.name = "value"
-        card.add(valLabel)
-        card.add(Box.createVerticalStrut(2))
-        card.add(lbl)
-        return card
-    }
-
-    private fun updateMiniCard(card: JPanel, value: String) {
-        for (comp in card.components) {
-            if (comp is JBLabel && comp.name == "value") {
-                comp.text = value
-                break
+    private fun miniTile(value: String, label: String, accent: Color): JPanel {
+        val tile = object : JPanel() {
+            override fun paintComponent(g: Graphics) {
+                val g2 = g.create() as Graphics2D
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2.color = SF.surface; g2.fillRoundRect(0, 0, width, height, SF.RADIUS, SF.RADIUS); g2.dispose()
+                super.paintComponent(g)
             }
+        }.apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false
+            border = BorderFactory.createCompoundBorder(RoundBorder(SF.RADIUS, SF.border), JBUI.Borders.empty(8, 10))
         }
-        card.revalidate()
-        card.repaint()
+        tile.add(JLabel(value).apply {
+            font = Font("Monospaced", Font.BOLD, 18); foreground = accent; alignmentX = Component.LEFT_ALIGNMENT; name = "value"
+        })
+        tile.add(JLabel(label).apply {
+            font = Font("Monospaced", Font.PLAIN, 9); foreground = SF.textMuted; alignmentX = Component.LEFT_ALIGNMENT
+        })
+        return tile
+    }
+
+    private fun updateTile(tile: JPanel, value: String) {
+        (tile.components.firstOrNull { it is JLabel && (it as JLabel).name == "value" } as? JLabel)?.text = value
+        tile.revalidate(); tile.repaint()
     }
 
     // ── How it works ──────────────────────────────────────────────────────────
 
     private fun buildHowItWorks(): JPanel {
-        val panel = JPanel().apply {
-            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque   = false
-            alignmentX = Component.LEFT_ALIGNMENT
-            border     = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor.border(), 1, true),
-                JBUI.Borders.empty(10, 12)
-            )
-        }
+        val card = sfCard(extraPad = Insets(12, 14, 12, 14))
+        card.layout = BoxLayout(card, BoxLayout.Y_AXIS)
         val steps = listOf(
-            "1️⃣  Select your architecture pattern above",
-            "2️⃣  Click  Analyze Code Quality",
-            "3️⃣  SpringForge scans all Java files via PSI",
-            "4️⃣  ML models classify anti-patterns & score quality",
-            "5️⃣  Gemini AI generates fix suggestions",
-            "6️⃣  Full report opens in a popup — print or close"
+            "1" to "Select architecture pattern above",
+            "2" to "Click  Analyze Code Quality",
+            "3" to "SpringForge scans all Java files via PSI",
+            "4" to "ML models classify anti-patterns & score quality",
+            "5" to "Gemini AI generates targeted fix suggestions",
+            "6" to "Report opens — review, print or close"
         )
-        steps.forEach { step ->
-            panel.add(JBLabel(step).apply {
-                font       = JBUI.Fonts.label(11f)
-                foreground = UIUtil.getLabelForeground()
-                alignmentX = Component.LEFT_ALIGNMENT
-            })
-            panel.add(Box.createVerticalStrut(4))
+        steps.forEach { (num, text) ->
+            val row = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply { isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, 22) }
+            row.add(Badge(num, SF.brand))
+            row.add(JLabel(text).apply { font = Font("Monospaced", Font.PLAIN, 11); foreground = SF.textPrimary })
+            card.add(row)
+            if (num != "6") card.add(Box.createVerticalStrut(6))
         }
-        return panel
+        return card
     }
 
-    // ── Wire listeners ────────────────────────────────────────────────────────
+    // ── Listeners ─────────────────────────────────────────────────────────────
 
     private fun wireListeners() {
-        // Architecture card selection
-        architectures.forEach { (name, _, _) ->
-            archCards[name]?.addMouseListener(object : MouseAdapter() {
-                override fun mouseClicked(e: MouseEvent) = selectArchitecture(name)
-            })
+        architectures.forEach { (key, _, _) ->
+            archCards[key]?.let { card ->
+                wireCardHover(card, key)
+                card.addMouseListener(object : MouseAdapter() {
+                    override fun mouseClicked(e: MouseEvent) = selectArchitecture(key)
+                })
+            }
         }
-
-        // Analyze
         analyzeButton.addActionListener { runAnalysis() }
-
-        // View last report
-        viewReportButton.addActionListener {
-            val r = lastResult ?: return@addActionListener
-            showReportDialog(r, lastFixes)
-        }
+        viewReportButton.addActionListener { lastResult?.let { showReportDialog(it, lastFixes) } }
     }
 
-    private fun selectArchitecture(name: String) {
-        selectedArchitecture = name
-        architectures.forEach { (n, _, _) ->
-            archCards[n]?.let { card -> applyCardStyle(card, n == name) }
-        }
-        // Update bold label foreground inside card
-        archCards.forEach { (n, card) ->
-            card.components.filterIsInstance<JPanel>().firstOrNull()?.let { col ->
-                col.components.filterIsInstance<JBLabel>().firstOrNull()?.let { lbl ->
-                    lbl.foreground = if (n == name)
-                        JBColor(Color(0x2563EB), Color(0x93C5FD))
-                    else
-                        UIUtil.getLabelForeground()
-                }
-            }
+    private fun selectArchitecture(key: String) {
+        val prev = selectedArchitecture; selectedArchitecture = key
+        architectures.forEach { (k, name, desc) ->
+            val icon = mapOf("layered" to "🏗", "mvc" to "🔄",
+                             "hexagonal" to "⬡", "clean_architecture" to "◎")[k] ?: "◻"
+            archCards[k]?.let { refreshCardStyle(it, k, name, desc, icon, k == key) }
         }
         revalidate(); repaint()
     }
 
-    // =========================================================================
-    //  Analysis workflow
-    // =========================================================================
+    // ── Analysis workflow (unchanged logic) ───────────────────────────────────
 
     private fun runAnalysis() {
-        analyzeButton.isEnabled    = false
-        viewReportButton.isEnabled = false
-        progressBar.isVisible      = true
-        setStatus("Scanning project files…", JBColor.GRAY)
-
-        ProgressManager.getInstance().run(object : Task.Backgroundable(
-            project, "SpringForge: Analyzing Code Quality…", true
-        ) {
+        analyzeButton.isEnabled = false; viewReportButton.isEnabled = false
+        progressBar.isVisible   = true; setStatus("Scanning project files…", SF.textSecondary)
+        val archKey = selectedArchitecture
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "SpringForge: Analyzing…", true) {
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    // Step 1: PSI extraction
-                    indicator.text     = "Scanning Java files…"
-                    indicator.fraction = 0.10
-                    setStatus("Extracting PSI features…", JBColor.GRAY)
-
+                    indicator.text = "Scanning Java files…"; indicator.fraction = 0.10
+                    setStatus("Extracting PSI features…", SF.textSecondary)
                     val files = ReadAction.compute<List<FileFeatureModel>, Throwable> {
-                        PsiFeatureExtractor.extractAllFiles(project, selectedArchitecture)
+                        PsiFeatureExtractor.extractAllFiles(project, archKey)
                     }
-
                     if (files.isEmpty()) {
-                        setStatus("❌ No Java files found.", JBColor(Color(0xEF4444), Color(0xF87171)))
-                        resetButtons(); return
+                        setStatus("❌  No Java files found.", SF.red); resetButtons(); return
                     }
-
-                    setStatus("Found ${files.size} Java files — running ML models…", JBColor.GRAY)
-
-                    // Step 2: ML analysis
-                    indicator.text     = "Running ML models…"
-                    indicator.fraction = 0.40
+                    setStatus("Found ${files.size} files — running ML models…", SF.textSecondary)
+                    indicator.text = "Running ML models…"; indicator.fraction = 0.40
                     val result = MLServiceClient.analyzeProjectFull(files)
-
-                    setStatus("ML complete — calling Gemini for AI fixes…", JBColor.GRAY)
-                    indicator.fraction = 0.65
-
-                    // Step 3: AI fixes
+                    setStatus("ML complete — calling Gemini…", SF.textSecondary); indicator.fraction = 0.65
                     var fixes: ProjectFixResult? = null
-                    if (result.anti_patterns.isNotEmpty()) {
+                    if (result.anti_patterns.isNotEmpty() && !result.llm_enhanced) {
                         indicator.text = "Generating AI fix suggestions…"
                         try {
-                            fixes = MLServiceClient.generateProjectFixes(result)
-                        } catch (_: Exception) { /* Gemini optional */ }
+                            val sourceMap = files.associate { it.file_name to (it.source_code ?: "") }
+                                .filterValues { it.isNotBlank() }
+                                .ifEmpty { null }
+                            fixes = MLServiceClient.generateProjectFixes(result, sourceMap)
+                        } catch (_: Exception) {}
                     }
-
-                    indicator.fraction = 1.0
-                    lastResult = result
-                    lastFixes  = fixes
-
-                    // Step 4: Update summary cards + show report
+                    indicator.fraction = 1.0; lastResult = result; lastFixes = fixes
                     ApplicationManager.getApplication().invokeLater {
-                        val scoreStr = "${result.overall_score.roundToInt()}/100"
-                        updateMiniCard(scoreCard,      scoreStr)
-                        updateMiniCard(violationsCard, result.total_violations.toString())
-                        updateMiniCard(filesCard,      result.total_files_analyzed.toString())
-                        updateMiniCard(fixesCard,      fixes?.total_fixes?.toString() ?: "0")
-
-                        val emoji = when {
-                            result.overall_score >= 90 -> "🟢"
-                            result.overall_score >= 75 -> "🟢"
-                            result.overall_score >= 60 -> "🟠"
-                            result.overall_score >= 40 -> "🔴"
-                            else                       -> "🔴"
-                        }
-                        setStatus("$emoji Analysis complete — ${result.overall_display}", JBColor(Color(0x10B981), Color(0x34D399)))
-                        resetButtons()
-                        viewReportButton.isEnabled = true
+                        updateTile(scoreCard,      "${result.overall_score.roundToInt()}/100")
+                        updateTile(violationsCard, result.total_violations.toString())
+                        updateTile(filesCard,      result.total_files_analyzed.toString())
+                        val fixCount = fixes?.total_fixes ?: result.fix_suggestions.size
+                        updateTile(fixesCard,      fixCount.toString())
+                        val emoji = when { result.overall_score >= 75 -> "🟢"; result.overall_score >= 60 -> "🟠"; else -> "🔴" }
+                        setStatus("$emoji  Analysis complete — ${result.overall_display}", SF.green)
+                        resetButtons(); viewReportButton.isEnabled = true
                         showReportDialog(result, fixes)
                     }
-
                 } catch (ex: Exception) {
-                    setStatus("❌ ${ex.message}", JBColor(Color(0xEF4444), Color(0xF87171)))
-                    resetButtons()
+                    setStatus("❌  ${ex.message}", SF.red); resetButtons()
                     ApplicationManager.getApplication().invokeLater {
-                        JOptionPane.showMessageDialog(
-                            this@QualityAssurancePanel,
+                        JOptionPane.showMessageDialog(this@QualityAssurancePanel,
                             "Analysis failed:\n${ex.message}\n\nMake sure the ML Service is running on port 8081.\nStart: uvicorn app.main:app --port 8081 --reload",
-                            "SpringForge — Analysis Error",
-                            JOptionPane.ERROR_MESSAGE
-                        )
+                            "SpringForge — Analysis Error", JOptionPane.ERROR_MESSAGE)
                     }
                     ex.printStackTrace()
                 }
@@ -429,32 +546,21 @@ class QualityAssurancePanel(private val project: Project) : JPanel() {
 
     private fun setStatus(msg: String, color: Color) {
         ApplicationManager.getApplication().invokeLater {
-            statusLabel.text       = msg
-            statusLabel.foreground = color
-            progressBar.isVisible  = msg.contains("…") || msg.contains("Scanning") || msg.contains("Running") || msg.contains("Gemini") || msg.contains("Extracting")
+            statusLabel.text       = msg; statusLabel.foreground = color
+            progressBar.isVisible  = msg.endsWith("…")
         }
     }
-
-    private fun resetButtons() {
-        ApplicationManager.getApplication().invokeLater {
-            analyzeButton.isEnabled = true
-            progressBar.isVisible   = false
-        }
+    private fun resetButtons() = ApplicationManager.getApplication().invokeLater {
+        analyzeButton.isEnabled = true; progressBar.isVisible = false
     }
 
-    // =========================================================================
-    //  Report popup dialog
-    // =========================================================================
-
-    fun showReportDialog(result: CombinedAnalysisResult, fixes: ProjectFixResult?) {
-        val dialog = QualityReportDialog(project, result, fixes)
-        dialog.show()
-    }
+    fun showReportDialog(result: CombinedAnalysisResult, fixes: ProjectFixResult?) =
+        QualityReportDialog(project, result, fixes).show()
 }
 
-// =============================================================================
-//  QualityReportDialog — full-screen popup with styled report + Print + Close
-// =============================================================================
+// ═══════════════════════════════════════════════════════════════════════════════
+//  QualityReportDialog  — redesigned, fully responsive, tabbed popup
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class QualityReportDialog(
     private val project : Project,
@@ -465,798 +571,718 @@ class QualityReportDialog(
     fun show() {
         val frame = JFrame("SpringForge — Code Quality Report").apply {
             defaultCloseOperation = JFrame.DISPOSE_ON_CLOSE
-            preferredSize         = Dimension(1000, 760)
-            minimumSize           = Dimension(700, 500)
+            preferredSize = Dimension(1080, 800)
+            minimumSize   = Dimension(740, 520)
         }
-
-        val root = JPanel(BorderLayout()).apply { background = UIUtil.getPanelBackground() }
-
-        // ── Header bar ────────────────────────────────────────────────────────
-        root.add(buildHeader(frame), BorderLayout.NORTH)
-
-        // ── Tabbed report body ────────────────────────────────────────────────
-        root.add(buildBody(), BorderLayout.CENTER)
-
-        // ── Bottom button bar ─────────────────────────────────────────────────
-        root.add(buildFooter(frame), BorderLayout.SOUTH)
-
-        frame.contentPane = root
+        frame.contentPane = buildRoot(frame)
         frame.pack()
         frame.setLocationRelativeTo(null)
+
+        // Re-layout on resize to keep everything proportional
+        frame.addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) {
+                frame.contentPane.revalidate(); frame.contentPane.repaint()
+            }
+        })
         frame.isVisible = true
+    }
+
+    // ── Root ──────────────────────────────────────────────────────────────────
+
+    private fun buildRoot(frame: JFrame): JPanel = JPanel(BorderLayout(0, 0)).apply {
+        background = SF.bg
+        add(buildHeader(),          BorderLayout.NORTH)
+        add(buildTabPane(),         BorderLayout.CENTER)
+        add(buildFooter(frame),     BorderLayout.SOUTH)
     }
 
     // ── Header ────────────────────────────────────────────────────────────────
 
-    private fun buildHeader(frame: JFrame): JPanel {
-        val panel = JPanel(BorderLayout(12, 0)).apply {
-            background = JBColor(Color(0x1E293B), Color(0x0F172A))
-            border     = JBUI.Borders.empty(14, 20, 14, 20)
+    private fun buildHeader(): JPanel {
+        val panel = JPanel(BorderLayout(20, 0)).apply {
+            background = SF.headerBg
+            border     = JBUI.Borders.empty(16, 24)
         }
 
-        val left = JPanel().apply {
-            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque = false
-        }
-        left.add(JLabel("SpringForge Code Quality Report").apply {
-            font       = Font("Monospaced", Font.BOLD, 16)
-            foreground = Color.WHITE
+        /* ---- Left: title + meta badges ---- */
+        val left = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false }
+
+        left.add(JLabel("SpringForge  Code Quality Report").apply {
+            font       = Font("Monospaced", Font.BOLD, 18)
+            foreground = Color(0xE6EDF3)
         })
-        left.add(JLabel("${result.architecture_pattern.uppercase()} architecture · ${result.analysis_date}").apply {
-            font       = Font("Monospaced", Font.PLAIN, 11)
-            foreground = Color(0x94A3B8)
+        left.add(Box.createVerticalStrut(6))
+
+        val metaRow = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply { isOpaque = false }
+        metaRow.add(Badge(humanArchName(result.architecture_pattern).uppercase(), Color(0x21262D), Color(0x8B949E)))
+        metaRow.add(JLabel("·").apply { font = Font("Monospaced", Font.PLAIN, 14); foreground = Color(0x484F58) })
+        metaRow.add(JLabel(result.analysis_date).apply { font = Font("Monospaced", Font.PLAIN, 12); foreground = Color(0x8B949E) })
+        metaRow.add(Box.createHorizontalStrut(4))
+
+        // Severity badge
+        val (sevBg, sevFg, sevText) = when {
+            result.total_violations == 0 -> Triple(Color(0x0D2A15), Color(0x3FB950), "✓  Clean")
+            result.anti_patterns.any { it.severity == "CRITICAL" } ->
+                Triple(Color(0x2A0A0A), Color(0xF85149), "● Critical issues")
+            else -> Triple(Color(0x2B1D00), Color(0xD29922), "● Issues found")
+        }
+        metaRow.add(Badge("$sevText  •  ${result.total_files_analyzed} files", sevBg, sevFg))
+        left.add(metaRow)
+
+        /* ---- Right: score ring ---- */
+        val scoreVal   = result.overall_score.roundToInt()
+        val scoreLabel = when { scoreVal >= 90 -> "EXCELLENT"; scoreVal >= 75 -> "GOOD"; scoreVal >= 60 -> "FAIR"; scoreVal >= 40 -> "POOR"; else -> "CRITICAL" }
+
+        val right = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false }
+        right.add(ScoreRing(scoreVal).also { it.alignmentX = Component.CENTER_ALIGNMENT })
+        right.add(Box.createVerticalStrut(2))
+        right.add(JLabel(scoreLabel).apply {
+            font = Font("Monospaced", Font.BOLD, 9); foreground = Color(0x8B949E); alignmentX = Component.CENTER_ALIGNMENT
         })
-
-        val scorePanel = buildHeaderScoreBadge()
-
-        panel.add(left,        BorderLayout.WEST)
-        panel.add(scorePanel,  BorderLayout.EAST)
-        return panel
-    }
-
-    private fun buildHeaderScoreBadge(): JPanel {
-        val score = result.overall_score.roundToInt()
-        val (bg, label) = when {
-            score >= 90 -> Color(0x065F46) to "EXCELLENT"
-            score >= 75 -> Color(0x14532D) to "GOOD"
-            score >= 60 -> Color(0x78350F) to "FAIR"
-            score >= 40 -> Color(0x7F1D1D) to "POOR"
-            else        -> Color(0x450A0A) to "CRITICAL"
-        }
-        val panel = JPanel().apply {
-            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-            background = bg
-            border     = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color(0x334155), 1, true),
-                JBUI.Borders.empty(8, 16)
-            )
-        }
-        panel.add(JLabel("$score").apply {
-            font       = Font("Monospaced", Font.BOLD, 28)
-            foreground = Color.WHITE
-            alignmentX = Component.CENTER_ALIGNMENT
-        })
-        panel.add(JLabel("$label / 100").apply {
-            font       = Font("Monospaced", Font.PLAIN, 10)
-            foreground = Color(0xD1FAE5)
-            alignmentX = Component.CENTER_ALIGNMENT
-        })
-        return panel
-    }
-
-    // ── Body (tabs) ───────────────────────────────────────────────────────────
-
-    private fun buildBody(): JTabbedPane {
-        val tabs = JTabbedPane().apply {
-            tabLayoutPolicy = JTabbedPane.SCROLL_TAB_LAYOUT
-            font            = JBUI.Fonts.label(12f)
-        }
-
-        tabs.addTab("📊 Overview",          buildOverviewTab())
-        tabs.addTab("⚠️ Violations",         buildViolationsTab())
-        tabs.addTab("📁 File Details",       buildFileDetailsTab())
-        tabs.addTab("🤖 AI Fix Suggestions", buildAIFixesTab())
-        tabs.addTab("📈 Metrics",            buildMetricsTab())
-        tabs.addTab("📋 Full Report",        buildFullReportTab())
-
-        return tabs
-    }
-
-    // ── TAB: Overview ─────────────────────────────────────────────────────────
-
-    private fun buildOverviewTab(): JComponent {
-        val panel = JPanel().apply {
-            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque = false
-            border   = JBUI.Borders.empty(16)
-        }
-
-        // Score bar chart by layer
-        panel.add(sectionTitle("LAYER QUALITY SCORES"))
-        panel.add(Box.createVerticalStrut(10))
-
-        result.layer_scores.forEach { ls ->
-            panel.add(buildLayerScoreRow(ls.layer, ls.mean_score, ls.quality_emoji, ls.quality_label))
-            panel.add(Box.createVerticalStrut(6))
-        }
-
-        panel.add(Box.createVerticalStrut(6))
-        panel.add(buildDivider())
-        panel.add(Box.createVerticalStrut(6))
-
-        // Overall bar
-        panel.add(buildLayerScoreRow("Overall Project", result.overall_score, "", result.overall_label, bold = true))
-        panel.add(Box.createVerticalStrut(20))
-
-        // Key metrics grid
-        panel.add(sectionTitle("KEY METRICS"))
-        panel.add(Box.createVerticalStrut(10))
-        panel.add(buildMetricsGrid())
-        panel.add(Box.createVerticalStrut(20))
-
-        // Quality interpretation legend
-        panel.add(sectionTitle("QUALITY INTERPRETATION"))
-        panel.add(Box.createVerticalStrut(8))
-        panel.add(buildLegend())
-        panel.add(Box.createVerticalGlue())
-
-        return JBScrollPane(panel).apply { border = JBUI.Borders.empty() }
-    }
-
-    private fun buildLayerScoreRow(
-        name  : String,
-        score : Double,
-        emoji : String,
-        label : String,
-        bold  : Boolean = false
-    ): JPanel {
-        val row = JPanel(BorderLayout(12, 0)).apply {
-            isOpaque    = false
-            maximumSize = Dimension(Int.MAX_VALUE, 26)
-        }
-
-        val nameLabel = JLabel("${emoji.ifBlank { "  " }} ${name.replaceFirstChar { it.uppercase() }}").apply {
-            font       = if (bold) JBUI.Fonts.label(12f).asBold() else JBUI.Fonts.label(11f)
-            preferredSize = Dimension(180, 20)
-        }
-
-        val barColor = when {
-            score >= 75 -> JBColor(Color(0x10B981), Color(0x34D399))
-            score >= 60 -> JBColor(Color(0xF59E0B), Color(0xFBBF24))
-            else        -> JBColor(Color(0xEF4444), Color(0xF87171))
-        }
-
-        val barPanel = JPanel(BorderLayout()).apply {
-            isOpaque    = false
-            preferredSize = Dimension(300, 16)
-        }
-        val filled  = JPanel().apply {
-            background  = barColor
-            preferredSize = Dimension((score / 100.0 * 300).toInt().coerceIn(4, 300), 16)
-        }
-        val empty = JPanel().apply { isOpaque = false }
-        val barInner = JPanel(BorderLayout()).apply { isOpaque = false }
-        barInner.add(filled, BorderLayout.WEST)
-        barInner.add(empty,  BorderLayout.CENTER)
-        barPanel.add(barInner, BorderLayout.CENTER)
-
-        val scoreLabel = JLabel("${score.roundToInt()}/100  $label").apply {
-            font      = if (bold) JBUI.Fonts.label(12f).asBold() else JBUI.Fonts.label(11f)
-            preferredSize = Dimension(130, 20)
-        }
-
-        row.add(nameLabel,  BorderLayout.WEST)
-        row.add(barPanel,   BorderLayout.CENTER)
-        row.add(scoreLabel, BorderLayout.EAST)
-        return row
-    }
-
-    private fun buildMetricsGrid(): JPanel {
-        val grid = JPanel(GridLayout(2, 3, 10, 8)).apply { isOpaque = false }
-        val metrics = listOf(
-            Triple("Files Analyzed",      result.total_files_analyzed.toString(), "📁"),
-            Triple("Violations Found",    result.total_violations.toString(),     "⚠️"),
-            Triple("Files with Issues",   result.files_with_violations.toString(),"🔍"),
-            Triple("Clean Files",         result.clean_files.size.toString(),     "✅"),
-            Triple("Avg LOC",             result.avg_loc.roundToInt().toString(), "📏"),
-            Triple("Projected Score",     "${result.projected_score_after_fixes.roundToInt()}/100", "📈")
-        )
-        metrics.forEach { (label, value, icon) ->
-            val card = JPanel().apply {
-                layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-                background = UIUtil.getPanelBackground()
-                border     = BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(JBColor.border(), 1, true),
-                    JBUI.Borders.empty(10, 12)
-                )
-            }
-            card.add(JLabel("$icon  $value").apply {
-                font       = JBUI.Fonts.label(16f).asBold()
-                alignmentX = Component.LEFT_ALIGNMENT
-            })
-            card.add(JLabel(label).apply {
-                font       = JBUI.Fonts.label(9f)
-                foreground = JBColor.GRAY
-                alignmentX = Component.LEFT_ALIGNMENT
-            })
-            grid.add(card)
-        }
-        return grid
-    }
-
-    private fun buildLegend(): JPanel {
-        val panel = JPanel().apply {
-            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque = false
-            border   = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor.border(), 1, true),
-                JBUI.Borders.empty(10, 14)
-            )
-        }
-        listOf(
-            "🟢 90–100 : Excellent — Production ready, follows all best practices",
-            "🟢 75–89  : Good      — Minor improvements needed",
-            "🟠 60–74  : Fair      — Several issues require attention",
-            "🔴 40–59  : Poor      — Significant refactoring recommended",
-            "🔴  0–39  : Critical  — Immediate action required"
-        ).forEach { line ->
-            panel.add(JLabel(line).apply { font = JBUI.Fonts.label(11f) })
-            panel.add(Box.createVerticalStrut(3))
-        }
-        return panel
-    }
-
-    // ── TAB: Violations ───────────────────────────────────────────────────────
-
-    private fun buildViolationsTab(): JComponent {
-        val panel = JPanel().apply {
-            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque = false
-            border   = JBUI.Borders.empty(16)
-        }
-
-        if (result.anti_patterns.isEmpty()) {
-            panel.add(Box.createVerticalStrut(40))
-            panel.add(JLabel("✅  No architectural violations detected!", SwingConstants.CENTER).apply {
-                font       = JBUI.Fonts.label(16f).asBold()
-                foreground = JBColor(Color(0x10B981), Color(0x34D399))
-                alignmentX = Component.CENTER_ALIGNMENT
-            })
-            panel.add(JLabel("Your project follows ${result.architecture_pattern} best practices.").apply {
-                foreground = JBColor.GRAY; alignmentX = Component.CENTER_ALIGNMENT
-            })
-        } else {
-            val groups = result.anti_patterns.groupBy { it.severity }
-            listOf("CRITICAL", "HIGH", "MEDIUM", "LOW").forEach { sev ->
-                groups[sev]?.let { list ->
-                    val (icon, bg) = when (sev) {
-                        "CRITICAL" -> "🔴" to JBColor(Color(0xFEF2F2), Color(0x2D0A0A))
-                        "HIGH"     -> "🟠" to JBColor(Color(0xFFFBEB), Color(0x2D1B00))
-                        "MEDIUM"   -> "🟡" to JBColor(Color(0xFEFCE8), Color(0x2D2500))
-                        else       -> "🟢" to UIUtil.getPanelBackground()
-                    }
-                    panel.add(sectionTitle("$icon $sev SEVERITY (${list.size})"))
-                    panel.add(Box.createVerticalStrut(8))
-                    list.forEach { ap ->
-                        panel.add(buildViolationCard(ap, bg))
-                        panel.add(Box.createVerticalStrut(8))
-                    }
-                    panel.add(Box.createVerticalStrut(8))
-                }
-            }
-        }
-        panel.add(Box.createVerticalGlue())
-        return JBScrollPane(panel).apply { border = JBUI.Borders.empty() }
-    }
-
-    private fun buildViolationCard(ap: org.springforge.qualityassurance.model.AntiPatternDetail, bg: Color): JPanel {
-        val card = JPanel().apply {
-            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-            background = bg
-            border     = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor.border(), 1, true),
-                JBUI.Borders.empty(12, 14)
-            )
-            maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
-        }
-
-        val title = ap.type.replace("_", " ").split(" ")
-            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-
-        card.add(JLabel("$title  [${ap.severity}]").apply {
-            font       = JBUI.Fonts.label(12f).asBold()
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-        card.add(Box.createVerticalStrut(4))
-        card.add(JLabel("Layer: ${ap.affected_layer}   |   Confidence: ${(ap.confidence * 100).roundToInt()}%   |   Files: ${ap.files.size}").apply {
-            font       = JBUI.Fonts.label(10f)
-            foreground = JBColor.GRAY
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-        card.add(Box.createVerticalStrut(6))
-        card.add(JLabel("<html><b>Problem:</b> ${ap.description}</html>").apply {
-            font       = JBUI.Fonts.label(11f)
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-        card.add(Box.createVerticalStrut(4))
-        card.add(JLabel("<html><b>Fix:</b> ${ap.recommendation}</html>").apply {
-            font       = JBUI.Fonts.label(11f)
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-        card.add(Box.createVerticalStrut(6))
-        val filesText = ap.files.take(5).joinToString("  •  ") +
-                        if (ap.files.size > 5) "  +${ap.files.size - 5} more" else ""
-        card.add(JLabel("📄 $filesText").apply {
-            font       = Font("Monospaced", Font.PLAIN, 10)
-            foreground = JBColor.GRAY
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-        return card
-    }
-
-    // ── TAB: File Details ─────────────────────────────────────────────────────
-
-    private fun buildFileDetailsTab(): JComponent {
-        val columns = arrayOf("File", "Layer", "Score", "Label", "Issues")
-        val data    = result.files.sortedBy { it.quality_score }.map { f ->
-            arrayOf(
-                f.file_name,
-                f.layer.replaceFirstChar { it.uppercase() },
-                "${f.quality_score.roundToInt()}/100",
-                "${f.quality_emoji} ${f.quality_label}",
-                if (f.issues.isEmpty()) "✅ Clean" else f.issues.joinToString(", ")
-            )
-        }.toTypedArray()
-
-        val table = object : javax.swing.JTable(data, columns) {
-            override fun isCellEditable(r: Int, c: Int) = false
-        }.apply {
-            font            = JBUI.Fonts.label(11f)
-            rowHeight       = 26
-            showHorizontalLines = true
-            showVerticalLines   = false
-            gridColor           = JBColor.border()
-            tableHeader.font    = JBUI.Fonts.label(11f).asBold()
-            setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-            columnModel.getColumn(0).preferredWidth = 220
-            columnModel.getColumn(1).preferredWidth = 90
-            columnModel.getColumn(2).preferredWidth = 70
-            columnModel.getColumn(3).preferredWidth = 120
-            columnModel.getColumn(4).preferredWidth = 280
-        }
-
-        // Color rows by score
-        table.setDefaultRenderer(Object::class.java, object : javax.swing.table.DefaultTableCellRenderer() {
-            override fun getTableCellRendererComponent(
-                t: javax.swing.JTable, value: Any?, sel: Boolean, foc: Boolean, row: Int, col: Int
-            ): Component {
-                val c = super.getTableCellRendererComponent(t, value, sel, foc, row, col)
-                if (!sel) {
-                    val score = data[row][2].toString().removeSuffix("/100").toIntOrNull() ?: 50
-                    c.background = when {
-                        score >= 75 -> JBColor(Color(0xF0FDF4), Color(0x052E16))
-                        score >= 60 -> UIUtil.getTableBackground()
-                        else        -> JBColor(Color(0xFFF1F2), Color(0x2D0A0A))
-                    }
-                }
-                return c
-            }
-        })
-
-        val panel = JPanel(BorderLayout()).apply { isOpaque = false; border = JBUI.Borders.empty(8) }
-        panel.add(JBScrollPane(table), BorderLayout.CENTER)
-
-        // Summary row
-        val summaryRow = JPanel(FlowLayout(FlowLayout.LEFT, 16, 4)).apply { isOpaque = false }
-        val critCount  = result.files.count { it.quality_score < 40 }
-        val goodCount  = result.files.count { it.quality_score >= 75 }
-        summaryRow.add(JLabel("Total: ${result.files.size}  |  Good: $goodCount  |  Critical: $critCount  |  Clean: ${result.clean_files.size}").apply {
-            font = JBUI.Fonts.label(10f); foreground = JBColor.GRAY
-        })
-        panel.add(summaryRow, BorderLayout.SOUTH)
-        return panel
-    }
-
-    // ── TAB: AI Fix Suggestions ───────────────────────────────────────────────
-
-    private fun buildAIFixesTab(): JComponent {
-        val panel = JPanel().apply {
-            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque = false
-            border   = JBUI.Borders.empty(16)
-        }
-
-        if (fixes == null || fixes.suggestions.isEmpty()) {
-            panel.add(Box.createVerticalStrut(40))
-            panel.add(JLabel(
-                if (fixes == null) "⏳  AI fix suggestions unavailable (Gemini not reachable)"
-                else               "✅  No violations — no fixes needed!"
-            ).apply {
-                font = JBUI.Fonts.label(13f); alignmentX = Component.CENTER_ALIGNMENT
-            })
-        } else {
-            panel.add(sectionTitle("🤖 GEMINI AI FIX SUGGESTIONS  (${fixes.suggestions.size} fixes)"))
-            panel.add(Box.createVerticalStrut(12))
-
-            fixes.suggestions.sortedBy { it.impact_points }.forEach { fix ->
-                panel.add(buildFixCard(fix))
-                panel.add(Box.createVerticalStrut(12))
-            }
-        }
-        panel.add(Box.createVerticalGlue())
-        return JBScrollPane(panel).apply { border = JBUI.Borders.empty() }
-    }
-
-    private fun buildFixCard(fix: org.springforge.qualityassurance.model.FixSuggestion): JPanel {
-        val card = JPanel().apply {
-            layout     = BoxLayout(this, BoxLayout.Y_AXIS)
-            background = UIUtil.getPanelBackground()
-            border     = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor(Color(0x8B5CF6), Color(0x7C3AED)), 1, true),
-                JBUI.Borders.empty(12, 14)
-            )
-            maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
-        }
-
-        val title = fix.anti_pattern.replace("_", " ").split(" ")
-            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-
-        card.add(JLabel("$title  [${fix.severity}]  ${if (fix.ai_powered) "🤖 AI-Powered" else "📖 Static"}").apply {
-            font       = JBUI.Fonts.label(12f).asBold()
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-        card.add(Box.createVerticalStrut(4))
-        card.add(JLabel("Layer: ${fix.layer}   |   Impact: ${fix.impact_points} pts").apply {
-            font       = JBUI.Fonts.label(10f)
-            foreground = JBColor.GRAY
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-
-        if (fix.problem.isNotBlank()) {
-            card.add(Box.createVerticalStrut(8))
-            card.add(JLabel("<html><b>Problem:</b> ${fix.problem}</html>").apply {
-                font = JBUI.Fonts.label(11f); alignmentX = Component.LEFT_ALIGNMENT
-            })
-        }
-
-        if (fix.recommendation.isNotBlank()) {
-            card.add(Box.createVerticalStrut(6))
-            card.add(JLabel("<html><b>💡 Recommendation:</b> ${fix.recommendation}</html>").apply {
-                font = JBUI.Fonts.label(11f); alignmentX = Component.LEFT_ALIGNMENT
-            })
-        }
-
-        if (fix.before_code.isNotBlank()) {
-            card.add(Box.createVerticalStrut(8))
-            card.add(JLabel("🔧 Example Fix:").apply { font = JBUI.Fonts.label(10f).asBold(); alignmentX = Component.LEFT_ALIGNMENT })
-            card.add(Box.createVerticalStrut(4))
-            card.add(buildCodeBlock("// ❌ BEFORE\n${fix.before_code}\n\n// ✅ AFTER\n${fix.after_code}"))
-        }
-
-        if (fix.gemini_fix.isNotBlank()) {
-            card.add(Box.createVerticalStrut(8))
-            card.add(JLabel(if (fix.ai_powered) "🤖 Gemini AI Analysis:" else "📖 Fix Guidance:").apply { font = JBUI.Fonts.label(10f).asBold(); alignmentX = Component.LEFT_ALIGNMENT })
-            card.add(Box.createVerticalStrut(4))
-            card.add(buildCodeBlock(fix.gemini_fix))
-        }
-
-        val filesStr = fix.files.joinToString("  •  ")
-        if (filesStr.isNotBlank()) {
-            card.add(Box.createVerticalStrut(6))
-            card.add(JLabel("📄 $filesStr").apply {
-                font       = Font("Monospaced", Font.PLAIN, 10)
-                foreground = JBColor.GRAY
-                alignmentX = Component.LEFT_ALIGNMENT
-            })
-        }
-        return card
-    }
-
-    private fun buildCodeBlock(code: String): JPanel {
-        val area = JTextArea(code).apply {
-            isEditable    = false
-            font          = Font("Monospaced", Font.PLAIN, 10)
-            background    = JBColor(Color(0xF8FAFC), Color(0x0F172A))
-            foreground    = JBColor(Color(0x1E293B), Color(0xE2E8F0))
-            lineWrap      = true
-            wrapStyleWord = true
-            border        = JBUI.Borders.empty(6, 8)
-            // No row cap — show every line of the Gemini/code content
-        }
-        val wrapper = JPanel(BorderLayout()).apply {
-            border = BorderFactory.createLineBorder(JBColor.border(), 1, true)
-            add(area, BorderLayout.CENTER)
-            // No maximumSize height cap — let it expand to show full content
-        }
-        return wrapper
-    }
-
-    // ── TAB: Metrics ──────────────────────────────────────────────────────────
-
-    private fun buildMetricsTab(): JComponent {
-        val panel = JPanel().apply {
-            layout   = BoxLayout(this, BoxLayout.Y_AXIS)
-            isOpaque = false
-            border   = JBUI.Borders.empty(16)
-        }
-
-        panel.add(sectionTitle("CODE HEALTH METRICS"))
-        panel.add(Box.createVerticalStrut(10))
-
-        val metricRows = listOf(
-            "Architecture Pattern"       to result.architecture_pattern.uppercase(),
-            "Total Files Analyzed"       to result.total_files_analyzed.toString(),
-            "Files with Violations"      to result.files_with_violations.toString(),
-            "Total Issues Found"         to result.total_violations.toString(),
-            "Clean Files"                to result.clean_files.size.toString(),
-            "Average File Size (LOC)"    to result.avg_loc.roundToInt().toString(),
-            "Avg Cross-Layer Deps"       to "%.2f".format(result.avg_cross_layer_deps),
-            "Projected Score After Fixes" to "${result.projected_score_after_fixes.roundToInt()}/100"
-        )
-        panel.add(buildMetricTable(metricRows))
-        panel.add(Box.createVerticalStrut(20))
-
-        panel.add(sectionTitle("LAYER BREAKDOWN"))
-        panel.add(Box.createVerticalStrut(10))
-
-        val layerRows = result.layer_scores.map { ls ->
-            "${ls.layer.replaceFirstChar { it.uppercase() }} Layer" to
-                    "${ls.mean_score.roundToInt()}/100  ${ls.quality_emoji} ${ls.quality_label}  (${ls.file_count} files)"
-        }
-        panel.add(buildMetricTable(layerRows))
-        panel.add(Box.createVerticalStrut(20))
-
-        panel.add(sectionTitle("VIOLATION BREAKDOWN"))
-        panel.add(Box.createVerticalStrut(10))
-        val sevRows = listOf("CRITICAL", "HIGH", "MEDIUM", "LOW").mapNotNull { sev ->
-            val count = result.anti_patterns.count { it.severity == sev }
-            if (count > 0) "$sev Violations" to count.toString() else null
-        }
-        if (sevRows.isEmpty()) panel.add(JLabel("✅  No violations.").apply { alignmentX = Component.LEFT_ALIGNMENT })
-        else panel.add(buildMetricTable(sevRows))
-
-        panel.add(Box.createVerticalGlue())
-        return JBScrollPane(panel).apply { border = JBUI.Borders.empty() }
-    }
-
-    private fun buildMetricTable(rows: List<Pair<String, String>>): JPanel {
-        val panel = JPanel(GridLayout(rows.size, 2, 0, 0)).apply {
-            border   = BorderFactory.createLineBorder(JBColor.border(), 1, true)
-            isOpaque = false
-            maximumSize = Dimension(Int.MAX_VALUE, rows.size * 28)
-        }
-        rows.forEachIndexed { i, (key, value) ->
-            val bg = if (i % 2 == 0) UIUtil.getTableBackground() else UIUtil.getDecoratedRowColor()
-            panel.add(JLabel("  $key").apply { background = bg; isOpaque = true; font = JBUI.Fonts.label(11f) })
-            panel.add(JLabel("  $value").apply { background = bg; isOpaque = true; font = JBUI.Fonts.label(11f).asBold() })
-        }
-        return panel
-    }
-
-    // ── TAB: Full Text Report ─────────────────────────────────────────────────
-
-    private fun buildFullReportTab(): JComponent {
-        val reportText = buildFullReportText()
-        val area = JBTextArea(reportText).apply {
-            isEditable = false
-            font       = Font("Monospaced", Font.PLAIN, 11)
-            lineWrap   = false
-            border     = JBUI.Borders.empty(10)
-        }
-        return JBScrollPane(area).apply { border = JBUI.Borders.empty() }
-    }
-
-    private fun buildFullReportText(): String {
-        val sb = StringBuilder()
-        sb.appendLine("╔══════════════════════════════════════════════════════════════════╗")
-        sb.appendLine("║       SPRINGFORGE CODE QUALITY ANALYSIS REPORT                  ║")
-        sb.appendLine("║          Complete System Analysis  +  AI Fix Suggestions        ║")
-        sb.appendLine("╚══════════════════════════════════════════════════════════════════╝")
-        sb.appendLine()
-        sb.appendLine("Architecture : ${result.architecture_pattern.uppercase()}")
-        sb.appendLine("Date         : ${result.analysis_date}")
-        sb.appendLine("Files        : ${result.total_files_analyzed}")
-        sb.appendLine("Score        : ${result.overall_display}")
-        sb.appendLine("Violations   : ${result.total_violations}")
-        sb.appendLine("AI Fixes     : ${fixes?.total_fixes ?: 0}")
-        sb.appendLine()
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        sb.appendLine("  LAYER QUALITY SCORES")
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        result.layer_scores.forEach { ls ->
-            val bar = "█".repeat((ls.mean_score / 5).roundToInt().coerceIn(0, 20)) +
-                      "░".repeat(20 - (ls.mean_score / 5).roundToInt().coerceIn(0, 20))
-            sb.appendLine("  ${ls.layer.padEnd(16)} $bar  ${ls.mean_score.roundToInt()}/100  ${ls.quality_emoji} ${ls.quality_label}")
-        }
-        sb.appendLine()
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        sb.appendLine("  ARCHITECTURAL VIOLATIONS")
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        if (result.anti_patterns.isEmpty()) {
-            sb.appendLine("  ✅ No architectural violations detected!")
-        } else {
-            listOf("CRITICAL", "HIGH", "MEDIUM", "LOW").forEach { sev ->
-                result.anti_patterns.filter { it.severity == sev }.forEach { ap ->
-                    sb.appendLine()
-                    sb.appendLine("  [${ap.severity}] ${ap.type.replace("_", " ").uppercase()}")
-                    sb.appendLine("  Layer      : ${ap.affected_layer}")
-                    sb.appendLine("  Confidence : ${(ap.confidence * 100).roundToInt()}%")
-                    sb.appendLine("  Files      : ${ap.files.joinToString(", ")}")
-                    sb.appendLine("  Problem    : ${ap.description}")
-                    sb.appendLine("  Fix        : ${ap.recommendation}")
-                }
-            }
-        }
-        sb.appendLine()
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        sb.appendLine("  FILE DETAILS  (worst → best)")
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        result.files.sortedBy { it.quality_score }.forEach { f ->
-            sb.appendLine("  ${f.file_name.padEnd(40)} ${f.quality_display}")
-            f.issues.forEach { issue -> sb.appendLine("    • $issue") }
-        }
-        sb.appendLine()
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        sb.appendLine("  CLEAN FILES")
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        result.clean_files.forEach { sb.appendLine("  ✅ $it") }
-        if (fixes != null && fixes.suggestions.isNotEmpty()) {
-            sb.appendLine()
-            sb.appendLine("══════════════════════════════════════════════════════════════════")
-            sb.appendLine("  🤖 AI FIX SUGGESTIONS  (Google Gemini)")
-            sb.appendLine("══════════════════════════════════════════════════════════════════")
-            fixes.suggestions.forEach { fix ->
-                sb.appendLine()
-                sb.appendLine("  [${fix.severity}] ${fix.anti_pattern.replace("_", " ").uppercase()}")
-                sb.appendLine("  Layer  : ${fix.layer}  |  Impact: ${fix.impact_points} pts  |  AI: ${fix.ai_powered}")
-                sb.appendLine("  Files  : ${fix.files.joinToString(", ")}")
-                if (fix.problem.isNotBlank()) sb.appendLine("  ❗ Problem    : ${fix.problem}")
-                if (fix.recommendation.isNotBlank()) sb.appendLine("  💡 Recommendation: ${fix.recommendation}")
-                if (fix.gemini_fix.isNotBlank()) {
-                    sb.appendLine()
-                    if (fix.ai_powered) sb.appendLine("  🤖 Gemini AI Fix:") else sb.appendLine("  📖 Fix Guidance:")
-                    fix.gemini_fix.lines().forEach { sb.appendLine("     $it") }
-                }
-                if (fix.before_code.isNotBlank()) {
-                    sb.appendLine()
-                    sb.appendLine("  🔧 Code Example:")
-                    sb.appendLine("  // ❌ BEFORE")
-                    fix.before_code.lines().forEach { sb.appendLine("     $it") }
-                    sb.appendLine("  // ✅ AFTER")
-                    fix.after_code.lines().forEach { sb.appendLine("     $it") }
-                }
-            }
-        }
-        sb.appendLine()
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        sb.appendLine("  METRICS")
-        sb.appendLine("══════════════════════════════════════════════════════════════════")
-        sb.appendLine("  ${result.quality_summary}")
-        sb.appendLine()
-        sb.appendLine("  ${result.violation_summary}")
-        sb.appendLine()
-        sb.appendLine("  Projected Score After Fixes: ${result.projected_score_after_fixes.roundToInt()}/100")
-        sb.appendLine()
-        sb.appendLine("━".repeat(66))
-        sb.appendLine("  Generated by SpringForge Code Quality Analyzer v2.1")
-        if (fixes != null) sb.appendLine("  AI fixes powered by Google Gemini 2.5 Flash 🤖")
-        return sb.toString()
-    }
-
-    // ── Footer (Print + Close) ────────────────────────────────────────────────
-
-    private fun buildFooter(frame: JFrame): JPanel {
-        val panel = JPanel(BorderLayout()).apply {
-            background = JBColor(Color(0x1E293B), Color(0x0F172A))
-            border     = JBUI.Borders.empty(10, 20, 10, 20)
-        }
-
-        val left = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply { isOpaque = false }
-        left.add(JLabel("SpringForge v2.1  |  Powered by XGBoost + Gemini AI").apply {
-            font       = JBUI.Fonts.label(10f)
-            foreground = Color(0x94A3B8)
-        })
-
-        val right = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply { isOpaque = false }
-
-        val printBtn  = JButton("🖨️  Print Report").apply {
-            font             = JBUI.Fonts.label(12f)
-            background       = JBColor(Color(0x334155), Color(0x1E293B))
-            foreground       = Color.WHITE
-            isFocusPainted   = false
-            isContentAreaFilled = true
-            border           = JBUI.Borders.empty(7, 16)
-            cursor           = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        }
-
-        val closeBtn  = JButton("✕  Close").apply {
-            font             = JBUI.Fonts.label(12f).asBold()
-            background       = JBColor(Color(0xDC2626), Color(0xB91C1C))
-            foreground       = Color.WHITE
-            isFocusPainted   = false
-            isContentAreaFilled = true
-            border           = JBUI.Borders.empty(7, 16)
-            cursor           = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        }
-
-        printBtn.addActionListener { printReport(frame) }
-        closeBtn.addActionListener { frame.dispose() }
-
-        right.add(printBtn)
-        right.add(closeBtn)
 
         panel.add(left,  BorderLayout.WEST)
         panel.add(right, BorderLayout.EAST)
         return panel
     }
 
-    // ── Print ─────────────────────────────────────────────────────────────────
+    // ── Tab pane ──────────────────────────────────────────────────────────────
 
-    private fun printReport(frame: JFrame) {
-        val job = PrinterJob.getPrinterJob()
-        job.setJobName("SpringForge Quality Report")
-        val reportText = buildFullReportText()
+    private fun buildTabPane(): JTabbedPane = JTabbedPane(JTabbedPane.TOP).apply {
+        tabLayoutPolicy = JTabbedPane.SCROLL_TAB_LAYOUT
+        font            = Font("Monospaced", Font.BOLD, 11)
+        background      = SF.bg
+        addTab("📊  Overview",       buildOverviewTab())
+        addTab("⚠   Violations",     buildViolationsTab())
+        addTab("📁  Files",          buildFilesTab())
+        addTab("🤖  AI Fixes",       buildAIFixesTab())
+        addTab("📈  Metrics",        buildMetricsTab())
+        addTab("📋  Full Report",    buildFullReportTab())
+    }
 
-        job.setPrintable(object : Printable {
-            override fun print(g: Graphics, pf: PageFormat, page: Int): Int {
-                val g2 = g as Graphics2D
-                val font = Font("Monospaced", Font.PLAIN, 8)
-                g2.font  = font
-                val fm   = g2.fontMetrics
-                val lh   = fm.height
-                val x    = pf.imageableX.toFloat()
-                val y0   = pf.imageableY.toFloat()
-                val w    = pf.imageableWidth.toFloat()
-                val h    = pf.imageableHeight.toFloat()
-                val chPerLine = (w / fm.charWidth('M')).toInt()
-                val linesPerPage = (h / lh).toInt()
+    // ══════════════════════════════════════════════════════════════════════════
+    //  TAB 1 — Overview
+    // ══════════════════════════════════════════════════════════════════════════
 
-                // Word-wrap to fit page width
-                val lines = mutableListOf<String>()
-                reportText.lines().forEach { line ->
-                    if (line.length <= chPerLine) lines.add(line)
-                    else {
-                        var start = 0
-                        while (start < line.length) {
-                            lines.add(line.substring(start, minOf(start + chPerLine, line.length)))
-                            start += chPerLine
-                        }
+    private fun buildOverviewTab(): JComponent {
+        val root = tabPanel()
+
+        /* -- Score bars card -- */
+        root.add(sectionLabel("LAYER QUALITY SCORES")); root.add(vgap(10))
+        val barsCard = sfCard()
+        barsCard.layout = BoxLayout(barsCard, BoxLayout.Y_AXIS)
+        result.layer_scores.forEach { ls ->
+            barsCard.add(scoreBarRow(ls.layer, ls.mean_score, ls.quality_emoji, ls.quality_label))
+            barsCard.add(Box.createVerticalStrut(10))
+        }
+        barsCard.add(JSeparator().apply {
+            foreground = SF.border; maximumSize = Dimension(Int.MAX_VALUE, 1)
+        })
+        barsCard.add(Box.createVerticalStrut(10))
+        barsCard.add(scoreBarRow("Overall", result.overall_score, "", result.overall_label, bold = true))
+        root.add(barsCard); root.add(vgap(20))
+
+        /* -- Key metric tiles -- */
+        root.add(sectionLabel("KEY METRICS")); root.add(vgap(10))
+        val tileData = mutableListOf(
+            Triple("📁", result.total_files_analyzed.toString(),                     "Files Analyzed"),
+            Triple("⚠",  result.total_violations.toString(),                         "Violations"),
+            Triple("🔍", result.files_with_violations.toString(),                   "Files w/ Issues"),
+            Triple("✅", result.clean_files.size.toString(),                         "Clean Files"),
+            Triple("📏", result.avg_loc.roundToInt().toString(),                     "Avg LOC"),
+            Triple("📈", "${result.projected_score_after_fixes.roundToInt()}/100",   "Projected Score")
+        )
+        if (result.llm_enhanced) {
+            tileData.add(Triple("🤖", "Yes", "LLM Validated"))
+            if (result.false_positives_filtered > 0)
+                tileData.add(Triple("🔇", result.false_positives_filtered.toString(), "False Pos. Removed"))
+        }
+        val tileRow = JPanel(GridLayout(0, 4, 8, 8)).apply {
+            isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, 72); alignmentX = Component.LEFT_ALIGNMENT
+        }
+        tileData.forEach { (icon, value, label) ->
+            val tile = sfCard(extraPad = Insets(10, 12, 10, 12))
+            tile.layout = BoxLayout(tile, BoxLayout.Y_AXIS)
+            tile.add(JLabel("$icon  $value").apply {
+                font = Font("Monospaced", Font.BOLD, 14); alignmentX = Component.LEFT_ALIGNMENT
+            })
+            tile.add(Box.createVerticalStrut(2))
+            tile.add(JLabel(label).apply {
+                font = Font("Monospaced", Font.PLAIN, 9); foreground = SF.textMuted; alignmentX = Component.LEFT_ALIGNMENT
+            })
+            tileRow.add(tile)
+        }
+        root.add(tileRow); root.add(vgap(20))
+
+        /* -- Legend -- */
+        root.add(sectionLabel("QUALITY SCALE")); root.add(vgap(10))
+        val legendCard = sfCard()
+        legendCard.layout = GridLayout(1, 5, 8, 0)
+        listOf(
+            Triple("90–100", "Excellent",  SF.green),
+            Triple("75–89",  "Good",       SF.green),
+            Triple("60–74",  "Fair",       SF.amber),
+            Triple("40–59",  "Poor",       SF.orange),
+            Triple("0–39",   "Critical",   SF.red)
+        ).forEach { (range, lbl, color) ->
+            val cell = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false }
+            cell.add(JLabel("● $range").apply {
+                font = Font("Monospaced", Font.BOLD, 11); foreground = color; alignmentX = Component.LEFT_ALIGNMENT
+            })
+            cell.add(JLabel(lbl).apply {
+                font = Font("Monospaced", Font.PLAIN, 9); foreground = SF.textSecondary; alignmentX = Component.LEFT_ALIGNMENT
+            })
+            legendCard.add(cell)
+        }
+        root.add(legendCard); root.add(Box.createVerticalGlue())
+        return scrolled(root)
+    }
+
+    private fun scoreBarRow(name: String, score: Double, emoji: String, label: String, bold: Boolean = false): JPanel {
+        val row = JPanel(BorderLayout(12, 0)).apply {
+            isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, 22); alignmentX = Component.LEFT_ALIGNMENT
+        }
+        val nameLabel = JLabel("${emoji.ifBlank { "  " }} ${name.replaceFirstChar { it.uppercase() }}").apply {
+            font = if (bold) Font("Monospaced", Font.BOLD, 11) else Font("Monospaced", Font.PLAIN, 11)
+            preferredSize = Dimension(160, 18)
+        }
+        val bar = ScoreBar(score).apply { preferredSize = Dimension(0, 8) }
+        val scoreLabel = JLabel("${score.roundToInt()}/100  $label").apply {
+            font = if (bold) Font("Monospaced", Font.BOLD, 11) else Font("Monospaced", Font.PLAIN, 11)
+            foreground = when { score >= 75 -> SF.green; score >= 60 -> SF.amber; else -> SF.red }
+            preferredSize = Dimension(130, 18); horizontalAlignment = SwingConstants.RIGHT
+        }
+        row.add(nameLabel, BorderLayout.WEST)
+        row.add(bar,       BorderLayout.CENTER)
+        row.add(scoreLabel,BorderLayout.EAST)
+        return row
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  TAB 2 — Violations
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun buildViolationsTab(): JComponent {
+        val root = tabPanel()
+        if (result.anti_patterns.isEmpty()) {
+            root.add(emptyState("✅", "No Violations Detected",
+                "Your ${humanArchName(result.architecture_pattern)} project follows all architectural best practices."))
+        } else {
+            listOf("CRITICAL" to SF.red, "HIGH" to SF.orange, "MEDIUM" to SF.amber, "LOW" to SF.green)
+                .forEach { (sev, color) ->
+                    val group = result.anti_patterns.filter { it.severity == sev }
+                    if (group.isEmpty()) return@forEach
+                    val icon = when(sev) { "CRITICAL" -> "🔴"; "HIGH" -> "🟠"; "MEDIUM" -> "🟡"; else -> "🔵" }
+                    root.add(sectionLabel("$icon  $sev  (${group.size} issue${if(group.size>1)"s" else ""})"))
+                    root.add(vgap(8))
+                    group.forEach { ap -> root.add(violationCard(ap, color)); root.add(vgap(8)) }
+                    root.add(vgap(10))
+                }
+        }
+        root.add(Box.createVerticalGlue())
+        return scrolled(root)
+    }
+
+    private fun violationCard(ap: AntiPatternDetail, accent: Color): JPanel {
+        val card = stripeCard(accent)
+        val body = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false; border = JBUI.Borders.empty(12, 14, 12, 14)
+        }
+
+        /* Title row */
+        val titleRow = JPanel(BorderLayout(8, 0)).apply { isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, 24) }
+        val titleText = ap.type.replace("_", " ").split(" ")
+            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+        titleRow.add(JLabel(titleText).apply {
+            font = Font("Monospaced", Font.BOLD, 12); foreground = SF.textPrimary
+        }, BorderLayout.WEST)
+        val badges = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply { isOpaque = false }
+        badges.add(Badge(ap.severity, accent))
+        badges.add(Badge("${(ap.confidence * 100).roundToInt()}% confidence",
+            SF.overlay, SF.textSecondary))
+        if (ap.llm_validated) badges.add(Badge("✅ LLM Validated", Color(0x0D2A15), SF.green))
+        titleRow.add(badges, BorderLayout.EAST)
+        body.add(titleRow); body.add(vgap(8))
+
+        /* Meta chips */
+        val metaRow = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply {
+            isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, 22)
+        }
+        metaRow.add(chip("Layer: ${ap.affected_layer}"))
+        metaRow.add(chip("${ap.files.size} file${if (ap.files.size > 1) "s" else ""}"))
+        body.add(metaRow); body.add(vgap(8))
+
+        /* Problem / Fix */
+        val problemText = ap.llm_description.ifBlank { ap.description }
+        body.add(infoRow("Problem", problemText))
+        body.add(vgap(4))
+        body.add(infoRow("Fix", ap.recommendation))
+        body.add(vgap(8))
+
+        /* Affected files */
+        val fileStr = ap.files.take(4).joinToString("   ·   ") +
+            if (ap.files.size > 4) "   +${ap.files.size - 4} more" else ""
+        body.add(JLabel("📄  $fileStr").apply {
+            font = Font("Monospaced", Font.PLAIN, 10); foreground = SF.textMuted; alignmentX = Component.LEFT_ALIGNMENT
+        })
+
+        card.add(body, BorderLayout.CENTER)
+        return card
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  TAB 3 — Files
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun buildFilesTab(): JComponent {
+        val cols = arrayOf("File", "Layer", "Score", "Status", "Issues")
+        val rows = result.files.sortedBy { it.quality_score }.map { f ->
+            arrayOf(
+                f.file_name,
+                f.layer.replaceFirstChar { it.uppercase() },
+                "${f.quality_score.roundToInt()}/100",
+                "${f.quality_emoji}  ${f.quality_label}",
+                if (f.issues.isEmpty()) "✅  Clean"
+                else "<html>" + f.issues.joinToString("<br>") + "</html>"
+            )
+        }.toTypedArray()
+
+        val table = object : javax.swing.JTable(rows, cols) {
+            override fun isCellEditable(r: Int, c: Int) = false
+        }.apply {
+            font = Font("Monospaced", Font.PLAIN, 12)
+            // No fixed rowHeight — set per-row dynamically below
+            showHorizontalLines = true; showVerticalLines = false; gridColor = SF.border
+            background = SF.surface
+            tableHeader.apply {
+                font = Font("Monospaced", Font.BOLD, 12); background = SF.surfaceAlt
+                border = BorderFactory.createMatteBorder(0, 0, 1, 0, SF.border)
+            }
+            setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+            columnModel.getColumn(0).preferredWidth = 210
+            columnModel.getColumn(1).preferredWidth = 90
+            columnModel.getColumn(2).preferredWidth = 70
+            columnModel.getColumn(3).preferredWidth = 110
+            columnModel.getColumn(4).preferredWidth = 320
+        }
+
+        table.setDefaultRenderer(Object::class.java, object : javax.swing.table.DefaultTableCellRenderer() {
+            override fun getTableCellRendererComponent(
+                t: javax.swing.JTable, v: Any?, sel: Boolean, foc: Boolean, row: Int, col: Int
+            ): Component {
+                val c = super.getTableCellRendererComponent(t, v, sel, foc, row, col) as JLabel
+                c.border  = JBUI.Borders.empty(6, 8)
+                c.font    = Font("Monospaced", Font.PLAIN, 12)
+                c.verticalAlignment = SwingConstants.TOP   // top-align so multi-line issues read top-down
+                if (!sel) {
+                    val score = rows[row][2].removeSuffix("/100").toIntOrNull() ?: 50
+                    c.background = when {
+                        score >= 75 -> SF.greenBgRow
+                        score >= 60 -> SF.surface
+                        else        -> SF.redBgRow
                     }
                 }
-
-                val startLine = page * linesPerPage
-                if (startLine >= lines.size) return Printable.NO_SUCH_PAGE
-
-                g2.color = Color.BLACK
-                var yPos = y0 + lh
-                for (i in startLine until minOf(startLine + linesPerPage, lines.size)) {
-                    g2.drawString(lines[i], x, yPos)
-                    yPos += lh
-                }
-                return Printable.PAGE_EXISTS
+                return c
             }
         })
 
-        if (job.printDialog()) {
-            try {
-                job.print()
-            } catch (ex: PrinterException) {
-                JOptionPane.showMessageDialog(
-                    frame, "Print failed: ${ex.message}", "Print Error", JOptionPane.ERROR_MESSAGE
-                )
+        // Dynamically size each row to fit its rendered content (handles multi-line HTML issues)
+        for (row in 0 until table.rowCount) {
+            var maxHeight = 32   // minimum row height
+            for (col in 0 until table.columnCount) {
+                val comp = table.prepareRenderer(table.getCellRenderer(row, col), row, col)
+                maxHeight = maxOf(maxHeight, comp.preferredSize.height + 10)
             }
+            table.setRowHeight(row, maxHeight)
+        }
+
+        val outer = JPanel(BorderLayout(0, 0)).apply {
+            background = SF.bg; border = JBUI.Borders.empty(14, 16)
+        }
+        outer.add(JBScrollPane(table).apply {
+            border     = RoundBorder(SF.RADIUS, SF.border)
+            background = SF.surface
+        }, BorderLayout.CENTER)
+
+        val summaryBar = JPanel(FlowLayout(FlowLayout.LEFT, 14, 4)).apply { isOpaque = false }
+        listOf(
+            "Total: ${result.files.size}"                              to SF.textSecondary,
+            "🟢  Good: ${result.files.count { it.quality_score >= 75 }}" to SF.green,
+            "🔴  Critical: ${result.files.count { it.quality_score < 40 }}" to SF.red,
+            "✅  Clean: ${result.clean_files.size}"                    to SF.green
+        ).forEach { (txt, col) ->
+            summaryBar.add(JLabel(txt).apply {
+                font = Font("Monospaced", Font.PLAIN, 11); foreground = col
+            })
+        }
+        outer.add(summaryBar, BorderLayout.SOUTH)
+        return outer
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  TAB 4 — AI Fixes
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun buildAIFixesTab(): JComponent {
+        val root = tabPanel()
+        val allSuggestions = fixes?.suggestions?.takeIf { it.isNotEmpty() } ?: result.fix_suggestions
+        if (allSuggestions.isEmpty()) {
+            root.add(emptyState(
+                "✅",
+                "No Fixes Available",
+                if (result.total_violations == 0)
+                    "No violations were detected — your project is clean!"
+                else
+                    "No AI fix suggestions were generated for the detected violations."
+            ))
+        } else {
+            val src = if (result.llm_enhanced) "LLM-ENHANCED" else "GEMINI"
+            root.add(sectionLabel("🤖  $src AI FIX SUGGESTIONS  (${allSuggestions.size} fixes)"))
+            root.add(vgap(12))
+            allSuggestions.sortedByDescending { it.impact_points }.forEach { fix ->
+                root.add(fixCard(fix)); root.add(vgap(10))
+            }
+        }
+        root.add(Box.createVerticalGlue())
+        return scrolled(root)
+    }
+
+    private fun fixCard(fix: FixSuggestion): JPanel {
+        val accent = if (fix.ai_powered) SF.purple else SF.textMuted
+        val card   = stripeCard(accent)
+        val body   = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false; border = JBUI.Borders.empty(12, 14)
+        }
+
+        /* Title row */
+        val titleRow = JPanel(BorderLayout(8, 0)).apply { isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, 24) }
+        val title = fix.anti_pattern.replace("_", " ").split(" ")
+            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+        titleRow.add(JLabel(title).apply {
+            font = Font("Monospaced", Font.BOLD, 12); foreground = SF.textPrimary
+        }, BorderLayout.WEST)
+        val badges = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply { isOpaque = false }
+        val (sB, sF) = when (fix.severity) {
+            "CRITICAL" -> SF.red   to Color.WHITE
+            "HIGH"     -> SF.orange to Color.WHITE
+            "MEDIUM"   -> SF.amber  to Color.WHITE
+            else       -> SF.green  to Color.WHITE
+        }
+        badges.add(Badge(fix.severity, sB, sF))
+        badges.add(Badge(if (fix.ai_powered) "🤖  Gemini AI" else "📖  Static", accent))
+        badges.add(Badge("−${fix.impact_points} pts", SF.overlay, SF.textSecondary))
+        titleRow.add(badges, BorderLayout.EAST)
+        body.add(titleRow); body.add(vgap(6))
+
+        /* Meta chips */
+        val meta = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply {
+            isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, 22)
+        }
+        meta.add(chip("Layer: ${fix.layer}"))
+        fix.files.take(3).forEach { meta.add(chip(it)) }
+        if (fix.files.size > 3) meta.add(chip("+${fix.files.size - 3} more"))
+        body.add(meta)
+
+        if (fix.problem.isNotBlank()) { body.add(vgap(8)); body.add(infoRow("Problem", fix.problem)) }
+        if (fix.recommendation.isNotBlank()) { body.add(vgap(4)); body.add(infoRow("💡  Recommendation", fix.recommendation)) }
+
+        if (fix.before_code.isNotBlank()) {
+            body.add(vgap(10))
+            body.add(JLabel("Example:").apply {
+                font = Font("Monospaced", Font.BOLD, 10); foreground = SF.textMuted; alignmentX = Component.LEFT_ALIGNMENT
+            })
+            body.add(vgap(4))
+            body.add(codeBlock("// ❌  BEFORE\n${fix.before_code}\n\n// ✅  AFTER\n${fix.after_code}"))
+        }
+        if (fix.gemini_fix.isNotBlank()) {
+            body.add(vgap(10))
+            body.add(JLabel(if (fix.ai_powered) "🤖  Gemini AI Analysis:" else "📖  Fix Guidance:").apply {
+                font = Font("Monospaced", Font.BOLD, 10); foreground = accent; alignmentX = Component.LEFT_ALIGNMENT
+            })
+            body.add(vgap(4))
+            body.add(codeBlock(fix.gemini_fix))
+        }
+
+        card.add(body, BorderLayout.CENTER)
+        return card
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  TAB 5 — Metrics
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun buildMetricsTab(): JComponent {
+        val root = tabPanel()
+
+        root.add(sectionLabel("PROJECT HEALTH")); root.add(vgap(10))
+        val healthRows = mutableListOf(
+            "Architecture"             to humanArchName(result.architecture_pattern),
+            "Files Analyzed"           to result.total_files_analyzed.toString(),
+            "Files with Violations"    to result.files_with_violations.toString(),
+            "Total Issues Found"       to result.total_violations.toString(),
+            "Clean Files"              to result.clean_files.size.toString(),
+            "Average LOC"              to result.avg_loc.roundToInt().toString(),
+            "Avg Cross-Layer Deps"     to "%.2f".format(result.avg_cross_layer_deps),
+            "Projected Score"          to "${result.projected_score_after_fixes.roundToInt()}/100"
+        )
+        if (result.llm_enhanced) {
+            healthRows.add("LLM Validation" to "✅ Enabled")
+            healthRows.add("False Positives Filtered" to result.false_positives_filtered.toString())
+        }
+        root.add(metricTable(healthRows))
+        root.add(vgap(20))
+
+        root.add(sectionLabel("LAYER SCORES")); root.add(vgap(10))
+        root.add(metricTable(result.layer_scores.map { ls ->
+            ls.layer.replaceFirstChar { it.uppercase() } to
+                "${ls.mean_score.roundToInt()}/100  ${ls.quality_emoji}  ${ls.quality_label}  (${ls.file_count} files)"
+        }))
+        root.add(vgap(20))
+
+        root.add(sectionLabel("VIOLATIONS BY SEVERITY")); root.add(vgap(10))
+        val sevRows = listOf("CRITICAL","HIGH","MEDIUM","LOW").mapNotNull { sev ->
+            val c = result.anti_patterns.count { it.severity == sev }
+            if (c > 0) "$sev" to "$c violation${if(c>1)"s" else ""}" else null
+        }
+        if (sevRows.isEmpty()) {
+            root.add(JLabel("✅  No violations found.").apply {
+                font = Font("Monospaced", Font.PLAIN, 11); foreground = SF.green; alignmentX = Component.LEFT_ALIGNMENT
+            })
+        } else root.add(metricTable(sevRows))
+
+        root.add(Box.createVerticalGlue())
+        return scrolled(root)
+    }
+
+    private fun metricTable(rows: List<Pair<String, String>>): JPanel {
+        val panel = JPanel(GridLayout(rows.size, 2, 0, 0)).apply {
+            isOpaque = false; alignmentX = Component.LEFT_ALIGNMENT
+            border   = RoundBorder(SF.RADIUS, SF.border)
+            maximumSize = Dimension(Int.MAX_VALUE, rows.size * 30)
+        }
+        rows.forEachIndexed { i, (k, v) ->
+            val bg = if (i % 2 == 0) SF.surface else SF.surfaceAlt
+            panel.add(JLabel("   $k").apply {
+                font = Font("Monospaced", Font.PLAIN, 11); foreground = SF.textSecondary
+                background = bg; isOpaque = true; border = JBUI.Borders.empty(4, 8)
+            })
+            panel.add(JLabel("$v   ").apply {
+                font = Font("Monospaced", Font.BOLD, 11); foreground = SF.textPrimary
+                background = bg; isOpaque = true; horizontalAlignment = SwingConstants.RIGHT
+                border = JBUI.Borders.empty(4, 8)
+            })
+        }
+        return panel
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  TAB 6 — Full Text Report
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun buildFullReportTab(): JComponent {
+        val area = JBTextArea(buildReportText()).apply {
+            isEditable = false; font = Font("Monospaced", Font.PLAIN, 11)
+            background = SF.codeBg; foreground = SF.codeFg
+            lineWrap = false; border = JBUI.Borders.empty(14)
+        }
+        return JBScrollPane(area).apply { border = JBUI.Borders.empty() }
+    }
+
+    // ── Footer ────────────────────────────────────────────────────────────────
+
+    private fun buildFooter(frame: JFrame): JPanel {
+        val panel = JPanel(BorderLayout(0, 0)).apply {
+            background = SF.headerBg
+            border     = BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, SF.headerBorder),
+                JBUI.Borders.empty(10, 20)
+            )
+        }
+        panel.add(JLabel("SpringForge v2.1  ·  ML + Gemini AI  ·  ${humanArchName(result.architecture_pattern)}").apply {
+            font = Font("Monospaced", Font.PLAIN, 10); foreground = Color(0x6E7681)
+        }, BorderLayout.WEST)
+
+        val right = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply { isOpaque = false }
+
+        val printBtn = footerButton("🖨   Print Report", Color(0x21262D), Color(0xC9D1D9))
+        val closeBtn = footerButton("✕   Close",         Color(0x6E1C1C), Color(0xFFA198))
+        printBtn.addActionListener { printReport(frame) }
+        closeBtn.addActionListener { frame.dispose() }
+        right.add(printBtn); right.add(closeBtn)
+        panel.add(right, BorderLayout.EAST)
+        return panel
+    }
+
+    private fun footerButton(text: String, bg: Color, fg: Color) = JButton(text).apply {
+        font = Font("Monospaced", Font.BOLD, 11); background = bg; foreground = fg
+        isFocusPainted = false; isContentAreaFilled = true; isOpaque = true
+        border = JBUI.Borders.empty(6, 14); cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+    }
+
+    // ── Print ─────────────────────────────────────────────────────────────────
+
+    private fun printReport(frame: JFrame) {
+        val job  = PrinterJob.getPrinterJob()
+        job.setJobName("SpringForge Quality Report")
+        val text = buildReportText()
+        job.setPrintable(object : Printable {
+            override fun print(g: Graphics, pf: PageFormat, page: Int): Int {
+                val g2 = g as Graphics2D; g2.font = Font("Monospaced", Font.PLAIN, 8)
+                val fm  = g2.fontMetrics; val lh  = fm.height
+                val x   = pf.imageableX.toFloat(); val y0 = pf.imageableY.toFloat()
+                val cpl = (pf.imageableWidth / fm.charWidth('M')).toInt()
+                val lpp = (pf.imageableHeight / lh).toInt()
+                val lines = mutableListOf<String>()
+                text.lines().forEach { line ->
+                    if (line.length <= cpl) lines.add(line)
+                    else { var s = 0; while (s < line.length) { lines.add(line.substring(s, minOf(s+cpl,line.length))); s += cpl } }
+                }
+                val start = page * lpp; if (start >= lines.size) return Printable.NO_SUCH_PAGE
+                g2.color = Color.BLACK; var yPos = y0 + lh
+                for (i in start until minOf(start + lpp, lines.size)) { g2.drawString(lines[i], x, yPos); yPos += lh }
+                return Printable.PAGE_EXISTS
+            }
+        })
+        if (job.printDialog()) try { job.print() }
+        catch (ex: PrinterException) {
+            JOptionPane.showMessageDialog(frame, "Print failed:\n${ex.message}", "Print Error", JOptionPane.ERROR_MESSAGE)
         }
     }
 
     // ── Shared helpers ────────────────────────────────────────────────────────
 
-    private fun sectionTitle(text: String): JLabel =
-        JLabel(text).apply {
-            font       = JBUI.Fonts.label(10f).asBold()
-            foreground = JBColor(Color(0x6B7280), Color(0x9CA3AF))
-            alignmentX = Component.LEFT_ALIGNMENT
-        }
+    /** Standard tab body panel. */
+    private fun tabPanel(): JPanel = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false; border = JBUI.Borders.empty(18, 22)
+    }
 
-    private fun buildDivider(): JSeparator =
-        JSeparator().apply { maximumSize = Dimension(Int.MAX_VALUE, 1) }
+    /** Vertical gap component. */
+    private fun vgap(n: Int): Component = Box.createVerticalStrut(n)
+
+    /** Key + value label row. */
+    private fun infoRow(key: String, value: String): JPanel {
+        val row = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+            isOpaque = false; maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
+        }
+        row.add(JLabel("$key:").apply {
+            font = Font("Monospaced", Font.BOLD, 11); foreground = SF.textSecondary
+        })
+        row.add(JLabel("<html><body style='width:520px;font-family:monospace;font-size:11px'>$value</body></html>").apply {
+            foreground = SF.textPrimary
+        })
+        return row
+    }
+
+    /** Monospaced code block panel. */
+    private fun codeBlock(code: String): JPanel {
+        val area = JTextArea(code).apply {
+            isEditable = false; font = Font("Monospaced", Font.PLAIN, 10)
+            background = SF.codeBg; foreground = SF.codeFg
+            lineWrap = true; wrapStyleWord = true; border = JBUI.Borders.empty(8, 10)
+        }
+        return JPanel(BorderLayout()).apply {
+            isOpaque = false; border = RoundBorder(SF.RADIUS_S, SF.border)
+            add(area, BorderLayout.CENTER)
+            alignmentX = Component.LEFT_ALIGNMENT; maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
+        }
+    }
+
+    /** Centered empty-state block for tabs with no data. */
+    private fun emptyState(icon: String, title: String, subtitle: String): JPanel {
+        val p = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS); isOpaque = false }
+        p.add(Box.createVerticalStrut(50))
+        p.add(JLabel(icon).apply { font = Font("Monospaced", Font.PLAIN, 34); alignmentX = Component.CENTER_ALIGNMENT })
+        p.add(Box.createVerticalStrut(10))
+        p.add(JLabel(title).apply {
+            font = Font("Monospaced", Font.BOLD, 14); alignmentX = Component.CENTER_ALIGNMENT; foreground = SF.textPrimary
+        })
+        p.add(Box.createVerticalStrut(6))
+        p.add(JLabel("<html><div style='text-align:center;width:340px'>$subtitle</div></html>").apply {
+            alignmentX = Component.CENTER_ALIGNMENT; foreground = SF.textSecondary
+        })
+        return p
+    }
+
+    /** Full text report for the Full Report tab and printing. */
+    private fun buildReportText(): String {
+        val sb = StringBuilder()
+        sb.appendLine("╔══════════════════════════════════════════════════════════════════╗")
+        sb.appendLine("║       SPRINGFORGE CODE QUALITY ANALYSIS REPORT                  ║")
+        sb.appendLine("╚══════════════════════════════════════════════════════════════════╝")
+        sb.appendLine()
+        sb.appendLine("Architecture : ${humanArchName(result.architecture_pattern)}")
+        sb.appendLine("Date         : ${result.analysis_date}")
+        sb.appendLine("Files        : ${result.total_files_analyzed}")
+        sb.appendLine("Score        : ${result.overall_display}")
+        sb.appendLine("Violations   : ${result.total_violations}")
+        val fixCount = fixes?.total_fixes ?: result.fix_suggestions.size
+        sb.appendLine("AI Fixes     : $fixCount")
+        if (result.llm_enhanced) {
+            sb.appendLine("LLM Validated: ✅ Yes")
+            if (result.false_positives_filtered > 0)
+                sb.appendLine("FP Filtered  : ${result.false_positives_filtered}")
+        }
+        sb.appendLine()
+        sb.appendLine("── LAYER SCORES ──────────────────────────────────────────────────────")
+        result.layer_scores.forEach { ls ->
+            val bar = "█".repeat((ls.mean_score / 5).roundToInt().coerceIn(0,20)) +
+                      "░".repeat(20 - (ls.mean_score / 5).roundToInt().coerceIn(0,20))
+            sb.appendLine("  ${ls.layer.padEnd(16)} $bar  ${ls.mean_score.roundToInt()}/100  ${ls.quality_emoji} ${ls.quality_label}")
+        }
+        sb.appendLine()
+        sb.appendLine("── VIOLATIONS ────────────────────────────────────────────────────────")
+        if (result.anti_patterns.isEmpty()) sb.appendLine("  ✅  No violations detected.")
+        else listOf("CRITICAL","HIGH","MEDIUM","LOW").forEach { sev ->
+            result.anti_patterns.filter { it.severity == sev }.forEach { ap ->
+                sb.appendLine()
+                sb.appendLine("  [${ap.severity}] ${ap.type.replace("_"," ").uppercase()}")
+                sb.appendLine("  Layer      : ${ap.affected_layer}")
+                sb.appendLine("  Confidence : ${(ap.confidence*100).roundToInt()}%")
+                if (ap.llm_validated) sb.appendLine("  LLM Valid  : ✅ Yes")
+                sb.appendLine("  Files      : ${ap.files.joinToString(", ")}")
+                sb.appendLine("  Problem    : ${ap.llm_description.ifBlank { ap.description }}")
+                sb.appendLine("  Fix        : ${ap.recommendation}")
+            }
+        }
+        sb.appendLine()
+        sb.appendLine("── FILE DETAILS ──────────────────────────────────────────────────────")
+        result.files.sortedBy { it.quality_score }.forEach { f ->
+            sb.appendLine("  ${f.file_name.padEnd(42)} ${f.quality_display}")
+            f.issues.forEach { issue -> sb.appendLine("    ·  $issue") }
+        }
+        sb.appendLine()
+        sb.appendLine("── CLEAN FILES ───────────────────────────────────────────────────────")
+        result.clean_files.forEach { sb.appendLine("  ✅  $it") }
+        val allSuggestions = fixes?.suggestions?.takeIf { it.isNotEmpty() } ?: result.fix_suggestions
+        if (allSuggestions.isNotEmpty()) {
+            sb.appendLine()
+            val src = if (result.llm_enhanced) "LLM-ENHANCED" else "AI"
+            sb.appendLine("── $src FIX SUGGESTIONS ────────────────────────────────────────────────")
+            allSuggestions.forEach { fix ->
+                sb.appendLine()
+                sb.appendLine("  [${fix.severity}] ${fix.anti_pattern.replace("_"," ").uppercase()}")
+                sb.appendLine("  Impact : -${fix.impact_points} pts  |  ${if (fix.ai_powered) "Gemini AI" else "Static"}")
+                if (fix.recommendation.isNotBlank()) sb.appendLine("  💡  ${fix.recommendation}")
+                if (fix.gemini_fix.isNotBlank()) fix.gemini_fix.lines().forEach { sb.appendLine("     $it") }
+                if (fix.before_code.isNotBlank()) {
+                    sb.appendLine("  // ❌  BEFORE")
+                    fix.before_code.lines().forEach { sb.appendLine("     $it") }
+                    sb.appendLine("  // ✅  AFTER")
+                    fix.after_code.lines().forEach  { sb.appendLine("     $it") }
+                }
+            }
+        }
+        sb.appendLine()
+        sb.appendLine("${"━".repeat(70)}")
+        sb.appendLine("  Generated by SpringForge Code Quality Analyzer v2.1")
+        if (result.llm_enhanced) sb.appendLine("  Analysis validated by LLM (Gemini) 🤖")
+        else if (fixes != null) sb.appendLine("  AI fixes powered by Google Gemini 🤖")
+        return sb.toString()
+    }
+
+    private fun humanArchName(apiKey: String): String = when (apiKey.lowercase()) {
+        "clean_architecture" -> "Clean Architecture"
+        "hexagonal"          -> "Hexagonal"
+        "mvc"                -> "MVC"
+        else                 -> "Layered"
+    }
 }

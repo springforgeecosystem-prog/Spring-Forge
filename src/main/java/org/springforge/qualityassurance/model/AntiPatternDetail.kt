@@ -8,5 +8,9 @@ data class AntiPatternDetail(
     val confidence: Double,
     val files: List<String>,
     val description: String,
-    val recommendation: String
+    val recommendation: String,
+    // v3: LLM validation fields
+    val llm_validated: Boolean = false,
+    val llm_description: String = "",
+    val fix_suggestion: Map<String, Any>? = null
 )

@@ -13,12 +13,36 @@ import javax.swing.BorderFactory
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 
 class CreateProjectDialog : DialogWrapper(true) {
+
+    companion object {
+        private val JAVA_KEYWORDS = setOf(
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
+            "class", "const", "continue", "default", "do", "double", "else", "enum",
+            "extends", "final", "finally", "float", "for", "goto", "if", "implements",
+            "import", "instanceof", "int", "interface", "long", "native", "new",
+            "package", "private", "protected", "public", "return", "short", "static",
+            "strictfp", "super", "switch", "synchronized", "this", "throw", "throws",
+            "transient", "try", "void", "volatile", "while", "true", "false", "null"
+        )
+
+        fun isValidIdentifier(name: String): Boolean =
+            name.isNotEmpty() && name[0].isLetter() &&
+            name.all { it.isLetterOrDigit() || it == '_' || it == '-' } &&
+            name !in JAVA_KEYWORDS
+    }
 
     // Fields
     private val projectNameField = JBTextField("demo")
     private val packageRootField = JBTextField("com.example.demo")
+
+    // True when the package field is being updated programmatically (suppress re-entry)
+    private var syncingPackage = false
+    // True once the user has manually typed in the package field
+    private var packageManuallyEdited = false
 
     // Dropdowns
     private val archCombo = ComboBox(arrayOf("Layered", "MVC", "Clean"))
@@ -31,6 +55,34 @@ class CreateProjectDialog : DialogWrapper(true) {
 
     init {
         title = "Create New Spring Boot Project"
+
+        // Track manual edits to the package field (ignore programmatic updates)
+        packageRootField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) { if (!syncingPackage) packageManuallyEdited = true }
+            override fun removeUpdate(e: DocumentEvent) { if (!syncingPackage) packageManuallyEdited = true }
+            override fun changedUpdate(e: DocumentEvent) { if (!syncingPackage) packageManuallyEdited = true }
+        })
+
+        // Auto-sync last package segment with project name
+        projectNameField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = syncPackage()
+            override fun removeUpdate(e: DocumentEvent) = syncPackage()
+            override fun changedUpdate(e: DocumentEvent) = syncPackage()
+
+            private fun syncPackage() {
+                if (packageManuallyEdited || syncingPackage) return
+                val name = projectNameField.text.trim().lowercase()
+                    .replace("[^a-z0-9]".toRegex(), "")
+                val base = packageRootField.text.substringBeforeLast(".", "com.example")
+                syncingPackage = true
+                try {
+                    packageRootField.text = if (name.isEmpty()) base else "$base.$name"
+                } finally {
+                    syncingPackage = false
+                }
+            }
+        })
+
         init()
     }
 
@@ -80,8 +132,18 @@ class CreateProjectDialog : DialogWrapper(true) {
     }
 
     override fun doValidate(): ValidationInfo? {
-        if (projectNameField.text.isBlank()) return ValidationInfo("Project name is required", projectNameField)
-        if (packageRootField.text.isBlank()) return ValidationInfo("Package is required", packageRootField)
+        val name = projectNameField.text.trim()
+        val pkg = packageRootField.text.trim()
+
+        if (name.isBlank()) return ValidationInfo("Project name is required", projectNameField)
+        if (name in JAVA_KEYWORDS)
+            return ValidationInfo("'$name' is a Java reserved keyword and cannot be used as a project name", projectNameField)
+
+        if (pkg.isBlank()) return ValidationInfo("Package is required", packageRootField)
+        val badSegment = pkg.split(".").firstOrNull { it in JAVA_KEYWORDS }
+        if (badSegment != null)
+            return ValidationInfo("'$badSegment' is a Java reserved keyword and cannot be used in a package name", packageRootField)
+
         return null
     }
 

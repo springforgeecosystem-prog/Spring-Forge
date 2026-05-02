@@ -29,9 +29,14 @@ class AuditDashboardPanel(private val project: Project) : JPanel(BorderLayout())
     private val service = AuditService.getInstance(project)
 
     // ── Summary cards ─────────────────────────────────────────────────────────
+    // Row 1: CI/CD Assistant
     private val genCard  = SummaryCard("GENERATIONS",   JBColor(Color(0x005CC5), Color(0x64B5F6)))
     private val valCard  = SummaryCard("VALIDATIONS",   JBColor(Color(0xD73A49), Color(0xEF5350)))
     private val explCard = SummaryCard("EXPLAINABILITY",JBColor(Color(0x6F42C1), Color(0xCE93D8)))
+    // Row 2: Other modules
+    private val codeGenCard = SummaryCard("CODE GEN",     JBColor(Color(0x0A7E07), Color(0x66BB6A)))
+    private val qualCard    = SummaryCard("QUALITY SCAN", JBColor(Color(0xE36209), Color(0xFFA726)))
+    private val runtimeCard = SummaryCard("RUNTIME",      JBColor(Color(0x005B99), Color(0x4FC3F7)))
 
     // ── Table ─────────────────────────────────────────────────────────────────
     private val tableModel = EventsTableModel()
@@ -68,10 +73,11 @@ class AuditDashboardPanel(private val project: Project) : JPanel(BorderLayout())
     // ══════════════════════════════════════════════════════════════════════════
 
     private fun setupUI() {
-        val summaryRow = JPanel(GridLayout(1, 3, 10, 0)).apply {
+        val summaryRow = JPanel(GridLayout(2, 3, 10, 8)).apply {
             isOpaque = false
             border   = JBUI.Borders.emptyBottom(12)
             add(genCard); add(valCard); add(explCard)
+            add(codeGenCard); add(qualCard); add(runtimeCard)
         }
 
         table.tableHeader.apply {
@@ -155,6 +161,9 @@ class AuditDashboardPanel(private val project: Project) : JPanel(BorderLayout())
         genCard.update(fmt(stats[AuditEventType.GENERATION]))
         valCard.update(fmt(stats[AuditEventType.VALIDATION]))
         explCard.update(fmt(stats[AuditEventType.EXPLAINABILITY]))
+        codeGenCard.update(fmt(stats[AuditEventType.CODE_GENERATION]))
+        qualCard.update(fmt(stats[AuditEventType.QUALITY_SCAN]))
+        runtimeCard.update(fmt(stats[AuditEventType.RUNTIME_ANALYSIS]))
     }
 
     private fun updateStatus() {
@@ -217,9 +226,12 @@ class AuditDashboardPanel(private val project: Project) : JPanel(BorderLayout())
                 ?.readBytes()?.let { "data:image/png;base64," + Base64.getEncoder().encodeToString(it) } ?: ""
         }.getOrDefault("")
 
-        val genEvents  = events.filter { it.eventType == AuditEventType.GENERATION }
-        val valEvents  = events.filter { it.eventType == AuditEventType.VALIDATION }
-        val explEvents = events.filter { it.eventType == AuditEventType.EXPLAINABILITY }
+        val genEvents     = events.filter { it.eventType == AuditEventType.GENERATION }
+        val valEvents     = events.filter { it.eventType == AuditEventType.VALIDATION }
+        val explEvents    = events.filter { it.eventType == AuditEventType.EXPLAINABILITY }
+        val codeGenEvents = events.filter { it.eventType == AuditEventType.CODE_GENERATION }
+        val qualEvents    = events.filter { it.eventType == AuditEventType.QUALITY_SCAN }
+        val runtimeEvents = events.filter { it.eventType == AuditEventType.RUNTIME_ANALYSIS }
         fun successPct(list: List<AuditEvent>) =
             if (list.isEmpty()) "—" else "${list.count { it.success } * 100 / list.size}%"
 
@@ -264,7 +276,7 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #2429
             if (logoSrc.isNotEmpty())
                 appendLine("  <td style=\"width:48pt;padding-right:12pt;\"><img src=\"$logoSrc\" style=\"height:40pt;width:40pt;\"/></td>")
             appendLine("  <td>")
-            appendLine("    <div class=\"hdr-title\">CI/CD Audit Log Report</div>")
+            appendLine("    <div class=\"hdr-title\">SpringForge Audit Log Report</div>")
             appendLine("    <div class=\"hdr-sub\">Traceability &amp; Compliance Report &#8212; SpringForge Audit System</div>")
             appendLine("    <div class=\"hdr-meta\">Generated: ${timeFmt.format(java.time.Instant.now())} &#160;&#8226;&#160; ${events.size} event${if (events.size != 1) "s" else ""}</div>")
             appendLine("  </td>")
@@ -277,9 +289,12 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #2429
             appendLine("<table class=\"stats-tbl\" cellspacing=\"0\">")
             appendLine("  <tr><th class=\"lbl\">Module</th><th>Total Events</th><th>Successes</th><th>Failures</th><th>Success Rate</th></tr>")
             listOf(
-                Triple("Generation",    genEvents,  "#005CC5"),
-                Triple("Validation",    valEvents,  "#D73A49"),
-                Triple("Explainability",explEvents, "#6F42C1")
+                Triple("CI/CD Generation",    genEvents,      "#005CC5"),
+                Triple("CI/CD Validation",    valEvents,      "#D73A49"),
+                Triple("CI/CD Explainability",explEvents,     "#6F42C1"),
+                Triple("Code Generation",     codeGenEvents,  "#0A7E07"),
+                Triple("Quality Scan",        qualEvents,     "#E36209"),
+                Triple("Runtime Analysis",    runtimeEvents,  "#005B99")
             ).forEach { (name, evts, hex) ->
                 val ok  = evts.count { it.success }
                 val fail= evts.size - ok
@@ -302,9 +317,12 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #2429
             events.forEach { e ->
                 val timeStr = timeFmt.format(e.createdAt)
                 val typeHex = when(e.eventType) {
-                    AuditEventType.GENERATION    -> "#005CC5"
-                    AuditEventType.VALIDATION    -> "#D73A49"
-                    AuditEventType.EXPLAINABILITY-> "#6F42C1"
+                    AuditEventType.GENERATION     -> "#005CC5"
+                    AuditEventType.VALIDATION     -> "#D73A49"
+                    AuditEventType.EXPLAINABILITY -> "#6F42C1"
+                    AuditEventType.CODE_GENERATION -> "#0A7E07"
+                    AuditEventType.QUALITY_SCAN    -> "#E36209"
+                    AuditEventType.RUNTIME_ANALYSIS -> "#005B99"
                 }
                 val statusHtml = when {
                     !e.success -> "<span class=\"err\">&#10008; Error</span>"
@@ -312,6 +330,10 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #2429
                         "<span class=\"err\">&#9888; ${e.issuesError} err</span>"
                     e.eventType == AuditEventType.VALIDATION && e.issuesWarn > 0 ->
                         "<span class=\"warn\">&#9888; ${e.issuesWarn} warn</span>"
+                    e.eventType == AuditEventType.QUALITY_SCAN && e.issuesError > 0 ->
+                        "<span class=\"err\">&#9888; ${e.issuesError} critical</span>"
+                    e.eventType == AuditEventType.QUALITY_SCAN && e.issuesWarn > 0 ->
+                        "<span class=\"warn\">&#9888; ${e.issuesWarn} violations</span>"
                     else -> "<span class=\"ok\">&#10004; OK</span>"
                 }
                 val detailHtml = when (e.eventType) {
@@ -319,13 +341,19 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #2429
                         "${e.issuesError}E / ${e.issuesWarn}W / ${e.issuesInfo}I"
                     AuditEventType.EXPLAINABILITY ->
                         "${e.insightCount} insight${if (e.insightCount != 1) "s" else ""}"
+                    AuditEventType.CODE_GENERATION ->
+                        "${e.insightCount} written, ${e.issuesWarn} skipped"
+                    AuditEventType.QUALITY_SCAN ->
+                        "${e.filesCount} files, ${e.issuesWarn} violations (${e.insightCount} AI fixes)"
+                    AuditEventType.RUNTIME_ANALYSIS ->
+                        if (e.success) "Analysis complete" else e.errorMsg?.take(60) ?: "Failed"
                     else -> e.errorMsg?.take(60) ?: "—"
                 }
                 val dur = if (e.durationMs >= 1000) "%.1fs".format(e.durationMs / 1000.0)
                           else "${e.durationMs}ms"
                 appendLine("  <tr>")
                 appendLine("    <td style=\"white-space:nowrap;\">$timeStr</td>")
-                appendLine("    <td><span style=\"color:$typeHex;font-weight:bold;\">${e.eventType.label.uppercase().take(5)}</span></td>")
+                appendLine("    <td><span style=\"color:$typeHex;font-weight:bold;\">${e.eventType.label}</span></td>")
                 appendLine("    <td>${e.sourceType ?: "—"}</td>")
                 appendLine("    <td>${e.artifacts?.replace(",", ", ") ?: "—"}</td>")
                 appendLine("    <td style=\"text-align:center;\">${if (e.filesCount > 0) e.filesCount.toString() else "—"}</td>")
@@ -386,7 +414,7 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #2429
             val e = rows[row]
             return when (col) {
                 0 -> timeFmt.format(e.createdAt)
-                1 -> e.eventType.label.uppercase().take(5)
+                1 -> e.eventType.label
                 2 -> e.sourceType ?: "—"
                 3 -> e.artifacts?.replace(",", ", ") ?: "—"
                 4 -> if (e.filesCount > 0) e.filesCount.toString() else "—"
@@ -413,6 +441,10 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #2429
                     "⚠ ${event.issuesError} err"
                 event.eventType == AuditEventType.VALIDATION && event.issuesWarn > 0 ->
                     "⚠ ${event.issuesWarn} warn"
+                event.eventType == AuditEventType.QUALITY_SCAN && event.issuesError > 0 ->
+                    "⚠ ${event.issuesError} critical"
+                event.eventType == AuditEventType.QUALITY_SCAN && event.issuesWarn > 0 ->
+                    "⚠ ${event.issuesWarn} violations"
                 else -> "✅ OK"
             }
             val comp = super.getTableCellRendererComponent(table, label, isSelected, hasFocus, row, column)

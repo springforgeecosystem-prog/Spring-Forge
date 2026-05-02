@@ -15,7 +15,7 @@ object NetworkClient {
             .build()
 
 
-    private const val ENDPOINT = "http://localhost:8000/analyze-error"
+    private const val ENDPOINT = "https://api.springforge.dev/runtime/analyze-error"
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
     fun analyzeError(jsonPayload: String): AnalysisResponse {

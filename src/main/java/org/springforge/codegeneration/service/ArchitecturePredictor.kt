@@ -8,7 +8,7 @@ import okhttp3.RequestBody
 import java.util.concurrent.TimeUnit
 
 class ArchitecturePredictor(
-    private val serverUrl: String = "http://localhost:8000"
+    private val serverUrl: String = "https://api.springforge.dev/code/"
 ) {
 
     private val mapper = jacksonObjectMapper()

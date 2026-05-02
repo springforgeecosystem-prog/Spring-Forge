@@ -22,11 +22,6 @@ class AnalysisResultDialog(
         private val notes: String?
 ) : DialogWrapper(project) {
 
-    data class Reference(
-            val title: String,
-            val url: String
-    )
-
     init {
         title = "SpringForge Analysis"
         init()

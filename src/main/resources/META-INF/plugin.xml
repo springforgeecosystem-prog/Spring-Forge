@@ -19,6 +19,9 @@
                 isLogByDefault="true"
                 title="SpringForge"/>
 
+        <!-- Application-level session manager (shared across all projects) -->
+        <applicationService serviceImplementation="org.springforge.auth.SessionManager"/>
+
         <!-- Project-level service for tool window -->
         <projectService serviceImplementation="org.springforge.toolwindow.SpringForgeToolWindowService"/>
 
