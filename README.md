@@ -579,7 +579,7 @@ See [full changelog](CHANGELOG.md) for complete history.
 
 - **Issues**: [GitHub Issues](https://github.com/springforgeecosystem-prog/Spring-Forge/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/springforgeecosystem-prog/Spring-Forge/discussions)
-- **Email**: SpringForge@yourorg.com
+- **Email**: springforgeecosystem@gmail.com
 
 ---
 
