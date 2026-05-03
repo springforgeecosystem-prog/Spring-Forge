@@ -1,6 +1,7 @@
 package org.springforge.auth
 
 import com.intellij.openapi.components.Service
+import org.springforge.subscription.SubscriptionManager
 
 /**
  * Application-level singleton that holds the current user session.
@@ -23,11 +24,16 @@ class SessionManager {
     fun login(token: String, user: UserInfo) {
         this.token = token
         this.currentUser = user
+        // Fetch subscription status in background after login
+        Thread {
+            SubscriptionManager.getInstance().fetchStatus(token)
+        }.start()
     }
 
     fun logout() {
         token = null
         currentUser = null
+        SubscriptionManager.getInstance().reset()
     }
 
     companion object {

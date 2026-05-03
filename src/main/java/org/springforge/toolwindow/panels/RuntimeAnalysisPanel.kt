@@ -9,6 +9,9 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import org.springforge.cicdassistant.audit.AuditService
 import org.springforge.runtimeanalysis.service.RuntimeAnalysisService
+import org.springforge.auth.SessionManager
+import org.springforge.subscription.SubscriptionManager
+import org.springforge.subscription.ui.RequestLimitDialog
 import java.awt.*
 import java.awt.datatransfer.StringSelection
 import java.awt.event.MouseAdapter
@@ -213,6 +216,12 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
     // ─────────────────────────────────────────────────────────────
 
     private fun analyzeError(errorText: String) {
+        // Subscription gate
+        if (!SubscriptionManager.getInstance().canMakeRequest()) {
+            RequestLimitDialog.show(project)
+            return
+        }
+
         showStatus("⏳  Analyzing…")
         val startMs = System.currentTimeMillis()
 
@@ -229,6 +238,10 @@ class RuntimeAnalysisPanel(private val project: Project) : JPanel() {
                                         durationMs = System.currentTimeMillis() - startMs,
                                         success    = true
                                     )
+                                    // Increment subscription usage after successful analysis
+                                    SessionManager.getInstance().token?.let { tok ->
+                                        Thread { SubscriptionManager.getInstance().incrementUsage(tok) }.start()
+                                    }
                                 }
                             },
                             onError = { err ->

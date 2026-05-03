@@ -17,6 +17,9 @@ import org.springforge.codegeneration.parser.YamlWriter
 import org.springforge.codegeneration.service.GenerationResult
 import org.springforge.codegeneration.service.GenerationResultService
 import org.springforge.codegeneration.ui.EntityDesignerDialog
+import org.springforge.auth.SessionManager
+import org.springforge.subscription.SubscriptionManager
+import org.springforge.subscription.ui.RequestLimitDialog
 import java.awt.*
 import java.io.File
 import javax.swing.*
@@ -212,6 +215,12 @@ class CodeGenerationPanel(private val project: Project) : JPanel() {
     // ─── Entity Designer → save YAML → trigger code generation ─────
 
     private fun openEntityDesignerAndGenerate() {
+        // Subscription gate
+        if (!SubscriptionManager.getInstance().canMakeRequest()) {
+            RequestLimitDialog.show(project)
+            return
+        }
+
         val baseDir = project.basePath ?: return
 
         // Try to load existing input.yml so the dialog pre-populates
@@ -262,6 +271,11 @@ class CodeGenerationPanel(private val project: Project) : JPanel() {
         val action = GenerateCodeAction()
         val event = createActionEvent()
         action.actionPerformed(event)
+
+        // Increment subscription usage after generation is triggered
+        SessionManager.getInstance().token?.let { tok ->
+            Thread { SubscriptionManager.getInstance().incrementUsage(tok) }.start()
+        }
     }
 
     // ─── Generation Results Display ───────────────────────────────
